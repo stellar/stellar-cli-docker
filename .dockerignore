@@ -1,0 +1,9 @@
+.git
+.github
+docs
+tests
+scripts
+*.md
+.dockerignore
+.shellcheckrc
+.hadolint.yaml

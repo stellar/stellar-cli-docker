@@ -1,0 +1,145 @@
+{
+  "$comment": "JSON Schema for builds.json. Cross-field constraints that JSON Schema cannot express (default_rust must appear in rust_versions; rust_versions entries must be keys in rust_image_digests) are enforced by scripts/validate-json.sh.",
+  "$id": "https://github.com/stellar/stellar-cli-docker/builds.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "definitions": {
+    "git_sha": {
+      "description": "Full 40-character git commit SHA.",
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "image_digest": {
+      "description": "OCI image digest, including the algorithm prefix.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "rust_version": {
+      "description": "Rust toolchain version in the form major.minor.patch.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "type": "string"
+    },
+    "semver": {
+      "description": "stellar-cli release version, major.minor.patch.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "$comment": {
+      "type": "string"
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "rust_image_digests": {
+      "additionalProperties": {
+        "$ref": "#/definitions/image_digest"
+      },
+      "description": "Map from rust toolchain version to the pinned multi-arch index digest of rust:<version>-slim-bookworm.",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/definitions/rust_version"
+      },
+      "type": "object"
+    },
+    "stellar_cli_versions": {
+      "description": "Each stellar-cli release we publish images for, with its explicit rust pairings.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "default_rust": {
+            "$ref": "#/definitions/rust_version",
+            "description": "Rust version used by the :<cli> tag alias (and, for the newest entry, :latest). Must also appear in rust_versions."
+          },
+          "ref": {
+            "$ref": "#/definitions/git_sha",
+            "description": "Upstream stellar/stellar-cli git commit SHA for this release. Source of truth; version is metadata."
+          },
+          "rust_versions": {
+            "description": "Explicit list of rust versions this stellar-cli release was built with at publish time.",
+            "items": {
+              "$ref": "#/definitions/rust_version"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "version": {
+            "$ref": "#/definitions/semver",
+            "description": "stellar-cli release version label, e.g. 26.0.0."
+          }
+        },
+        "required": [
+          "default_rust",
+          "ref",
+          "rust_versions",
+          "version"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "variants": {
+      "description": "Bespoke (stellar-cli, rust) combinations published under prefixed tags (e.g. :l0-...). Fully specified; do not participate in :<cli> or :latest aliases.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "cli_ref": {
+            "$ref": "#/definitions/git_sha",
+            "description": "stellar/stellar-cli commit SHA this variant is built from."
+          },
+          "cli_version": {
+            "$ref": "#/definitions/semver",
+            "description": "stellar-cli version label for this variant. Goes into tags and labels."
+          },
+          "description": {
+            "description": "Human-readable explanation of why this variant exists.",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Extra OCI labels merged on top of the defaults for this variant.",
+            "type": "object"
+          },
+          "name": {
+            "description": "Short identifier used as the tag prefix, e.g. l0.",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string"
+          },
+          "rust_version": {
+            "$ref": "#/definitions/rust_version",
+            "description": "Pinned rust toolchain for this variant. Must be a key in rust_image_digests."
+          },
+          "tags": {
+            "description": "Optional extra tag aliases for this variant, in addition to the canonical :<name>-<cli>-rust<rust> form.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "cli_ref",
+          "cli_version",
+          "description",
+          "name",
+          "rust_version"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "rust_image_digests",
+    "stellar_cli_versions",
+    "variants"
+  ],
+  "title": "stellar-cli-docker builds.json",
+  "type": "object"
+}
