@@ -55,7 +55,7 @@ main() {
     esac
   done
 
-  preflight_checks jq docker
+  preflight_checks jq buildx
 
   local versions
   if [ -n "$only_version" ]; then

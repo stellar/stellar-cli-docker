@@ -51,6 +51,7 @@ require_bash() {
 # at the top of main(). Validates the shell version first, then verifies
 # each named command. Recognised pseudo-tokens:
 #   sha256 — at least one of sha256sum or shasum must exist (backs sha256_of).
+#   buildx — docker exists AND the buildx plugin is functional. Implies docker.
 # Anything else is treated as a literal command name.
 preflight_checks() {
   require_bash
@@ -59,6 +60,7 @@ preflight_checks() {
   for tok in "$@"; do
     case "$tok" in
       sha256) require_sha256;;
+      buildx) require_buildx;;
       *)      cmds+=("$tok");;
     esac
   done
@@ -71,6 +73,13 @@ require_sha256() {
   command -v sha256sum >/dev/null 2>&1 \
     || command -v shasum  >/dev/null 2>&1 \
     || die "need either sha256sum or shasum on PATH for sha256 hashing"
+}
+
+require_buildx() {
+  command -v docker >/dev/null 2>&1 \
+    || die "docker is required (needed for buildx)"
+  docker buildx version >/dev/null 2>&1 \
+    || die "docker buildx plugin is required; install it or upgrade docker (docker buildx is the multi-arch build driver)"
 }
 
 # sha256_of <file> prints the file's SHA-256 hex digest. Prefers coreutils
