@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Read builds.json and emit a JSON matrix suitable for `fromJson()` in a
+# GitHub Actions workflow. The output drives per-image build jobs.
+#
+# Iteration:
+#   for each stellar_cli_versions[] entry
+#     for each rust in that entry's rust_versions
+#       emit one row per architecture (amd64, arm64) with variant="standard"
+#   for each variants[] entry
+#     emit one row per architecture (amd64, arm64) with variant=<name>
+#
+# A row carries the inputs build-image.sh needs (stellar-cli version, rust
+# version, platform, variant) plus the precomputed arch suffix for callers
+# that don't want to translate the platform string themselves.
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$script_dir/lib/common.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/resolve-matrix.sh [--compact|--pretty] [--help]
+
+Prints {"include": [...]} on stdout. Each include entry has:
+  arch                  amd64 | arm64
+  platform              linux/amd64 | linux/arm64
+  rust_version          e.g. 1.94.0
+  stellar_cli_version   e.g. 26.0.0
+  variant               standard or a variants[].name
+
+Options:
+  --compact   One-line JSON (default; matches what fromJson() consumes).
+  --pretty    Pretty-printed JSON, for human inspection.
+  --help      Show this message.
+EOF
+}
+
+main() {
+  local mode="compact"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --compact) mode="compact"; shift;;
+      --pretty)  mode="pretty"; shift;;
+      -h|--help) usage; exit 0;;
+      *)         err "unknown argument: $1"; usage; exit 1;;
+    esac
+  done
+
+  preflight_checks jq
+
+  local jq_flags=(-c)
+  if [ "$mode" = "pretty" ]; then
+    jq_flags=()
+  fi
+
+  builds_json "${jq_flags[@]}" '
+    def archs: ["amd64", "arm64"];
+    def row(cli; rust; variant; arch):
+      {
+        arch: arch,
+        platform: ("linux/" + arch),
+        rust_version: rust,
+        stellar_cli_version: cli,
+        variant: variant
+      };
+
+    {
+      include:
+        ( [ .stellar_cli_versions[]
+            | . as $e
+            | $e.rust_versions[] as $rust
+            | archs[] as $arch
+            | row($e.version; $rust; "standard"; $arch)
+          ]
+        + [ (.variants // [])[]
+            | . as $v
+            | archs[] as $arch
+            | row($v.cli_version; $v.rust_version; $v.name; $arch)
+          ]
+        )
+    }
+  '
+}
+
+main "$@"
