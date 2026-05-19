@@ -11,6 +11,7 @@ repo_root() {
 }
 
 BUILDS_JSON_PATH="$(repo_root)/builds.json"
+# shellcheck disable=SC2034  # consumed by validate-json.sh which sources this file
 BUILDS_SCHEMA_PATH="$(repo_root)/builds.schema.json"
 
 log() {

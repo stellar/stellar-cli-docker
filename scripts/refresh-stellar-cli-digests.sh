@@ -88,6 +88,7 @@ main() {
     sha="$(resolve_tag_commit "v${v}")"
     test -n "$sha" || die "could not resolve tag v${v} in $STELLAR_CLI_REPO"
     log "  -> $sha"
+    # shellcheck disable=SC2034  # `resolved` is consumed by apply_updates via `local -n`
     resolved["$v"]="$sha"
   done <<<"$versions"
 
