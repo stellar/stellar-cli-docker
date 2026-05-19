@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Maintainer helper: resolve the upstream stellar/stellar-cli commit SHA for
 # each stellar_cli_versions[].version (looking up the v<version> tag) and
-# fill in any blank `ref` entries in builds.json.
+# fill in any blank/unpinned `ref` entries in builds.json.
 #
-# Parallel to scripts/refresh-rust-digests.sh: by default it only fills
-# blanks, never silently rewriting an already-pinned SHA. Bumping a pinned
-# SHA must be requested per version via --stellar-cli-version.
+# Parallel to scripts/refresh-rust-digests.sh: only fills entries whose ref
+# is blank or invalid, never silently rewriting an already-pinned SHA.
+# Bumping a pinned SHA must be requested per version via --stellar-cli-version.
 
 set -euo pipefail
 
@@ -19,10 +19,14 @@ usage() {
   cat <<'EOF'
 Usage: scripts/refresh-stellar-cli-digests.sh [--stellar-cli-version <v>] [--dry-run] [--help]
 
-By default, resolves git commit SHAs only for stellar_cli_versions[] entries
-in builds.json whose `ref` is missing or blank. Already-pinned refs are
-intentional and are not touched — bumping a pinned ref is an explicit choice
-and must be requested per version via --stellar-cli-version.
+By default, resolves git commit SHAs only for existing stellar_cli_versions[]
+entries whose `ref` is blank or otherwise not a valid 40-hex SHA. Already-
+pinned refs are intentional and are not touched — bumping a pinned ref is
+an explicit choice and must be requested per version via --stellar-cli-version.
+
+This script does not add new entries to stellar_cli_versions; the version
+must already be declared. Add the entry (with an empty ref) by hand first
+if you want this script to fill it in.
 
 Options:
   --stellar-cli-version <v>   Resolve this stellar-cli version specifically,

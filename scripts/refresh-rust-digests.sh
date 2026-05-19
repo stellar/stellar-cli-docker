@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Maintainer helper: re-resolve rust:<version>-slim-bookworm to its current
 # multi-arch index digest via `docker buildx imagetools inspect`, and update
-# builds.json in place.
+# builds.json in place. Only fills entries whose digest is blank/unpinned;
+# bumping a pinned digest must be requested per version via --rust-version.
 #
 # Output stays sorted because the script edits the existing
 # rust_image_digests map (already alphabetical) without changing keys.
@@ -16,10 +17,15 @@ usage() {
   cat <<'EOF'
 Usage: scripts/refresh-rust-digests.sh [--rust-version <v>] [--dry-run] [--help]
 
-By default, resolves digests only for entries in builds.json's
-rust_image_digests that are missing or blank ("" or "sha256:"). Already-
-pinned digests are intentional and are not touched — bumping a pinned digest
-is an explicit choice and must be requested per version via --rust-version.
+By default, resolves digests only for existing rust_image_digests entries
+whose value is blank or otherwise not a valid pinned digest (e.g. "",
+"sha256:", or anything that doesn't match sha256:<64 hex>). Already-pinned
+digests are intentional and are not touched — bumping a pinned digest is
+an explicit choice and must be requested per version via --rust-version.
+
+This script does not add new keys to rust_image_digests; the rust version
+must already exist as a key. Add the key (with an empty digest) by hand
+first if you want this script to fill it in.
 
 Options:
   --rust-version <v>   Resolve this rust version specifically, even if it
