@@ -70,6 +70,14 @@ check_sorted_keys() {
   local rel
   while IFS= read -r file; do
     rel="${file#"$(repo_root)/"}"
+    # Detect parse errors first so a malformed file doesn't get reported as
+    # an "unsorted keys" failure.
+    if ! jq -e . "$file" >/dev/null 2>&1; then
+      err "$rel: invalid JSON"
+      jq . "$file" 2>&1 | sed 's/^/    /' >&2 || true
+      rc=1
+      continue
+    fi
     if ! jq -e 'def walk_sorted:
                   if type == "object"
                   then (keys == keys_unsorted)
