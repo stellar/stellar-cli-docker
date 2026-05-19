@@ -34,6 +34,20 @@ require_cmd() {
   done
 }
 
+# sha256_of <file> prints the file's SHA-256 hex digest. Prefers coreutils
+# sha256sum (universal on Linux), falls back to BSD shasum -a 256 (default
+# on macOS). One of the two is available on every platform we run on.
+sha256_of() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$file" | awk '{print $1}'
+  else
+    die "need either sha256sum or shasum on PATH"
+  fi
+}
+
 # builds_json [jq-args...] <jq-expr> evaluates <jq-expr> against builds.json
 # and prints the raw result. Any extra jq args (e.g. --arg name value) are
 # passed through; the expression itself is positional, just like jq.

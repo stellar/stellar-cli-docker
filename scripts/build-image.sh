@@ -67,7 +67,7 @@ main() {
 
   local build_date builds_json_sha
   build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  builds_json_sha="$(shasum -a 256 "$BUILDS_JSON_PATH" | awk '{print $1}')"
+  builds_json_sha="$(sha256_of "$BUILDS_JSON_PATH")"
 
   log "building $tag"
   log "  stellar-cli $cli  ($stellar_ref)"
