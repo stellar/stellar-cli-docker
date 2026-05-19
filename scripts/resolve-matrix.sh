@@ -2,16 +2,11 @@
 # Read builds.json and emit a JSON matrix suitable for `fromJson()` in a
 # GitHub Actions workflow. The output drives per-image build jobs.
 #
-# Iteration:
-#   for each stellar_cli_versions[] entry
-#     for each rust in that entry's rust_versions
-#       emit one row per architecture (amd64, arm64) with variant="standard"
-#   for each variants[] entry
-#     emit one row per architecture (amd64, arm64) with variant=<name>
-#
-# A row carries the inputs build-image.sh needs (stellar-cli version, rust
-# version, platform, variant) plus the precomputed arch suffix for callers
-# that don't want to translate the platform string themselves.
+# For each stellar_cli_versions[] entry, for each rust in that entry's
+# rust_versions, emits one row per architecture (amd64, arm64) with
+# variant="standard". Rows carry the inputs build-image.sh needs plus the
+# precomputed arch suffix for callers that don't want to translate the
+# platform string themselves.
 
 set -euo pipefail
 
@@ -28,7 +23,7 @@ Prints {"include": [...]} on stdout. Each include entry has:
   platform              linux/amd64 | linux/arm64
   rust_version          e.g. 1.94.0
   stellar_cli_version   e.g. 26.0.0
-  variant               standard or a variants[].name
+  variant               always "standard" for now
 
 Options:
   --compact   One-line JSON (default; matches what fromJson() consumes).
@@ -69,18 +64,12 @@ main() {
 
     {
       include:
-        ( [ .stellar_cli_versions[]
-            | . as $e
-            | $e.rust_versions[] as $rust
-            | archs[] as $arch
-            | row($e.version; $rust; "standard"; $arch)
-          ]
-        + [ (.variants // [])[]
-            | . as $v
-            | archs[] as $arch
-            | row($v.cli_version; $v.rust_version; $v.name; $arch)
-          ]
-        )
+        [ .stellar_cli_versions[]
+          | . as $e
+          | $e.rust_versions[] as $rust
+          | archs[] as $arch
+          | row($e.version; $rust; "standard"; $arch)
+        ]
     }
   '
 }
