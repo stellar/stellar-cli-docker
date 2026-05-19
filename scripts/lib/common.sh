@@ -80,6 +80,11 @@ require_buildx() {
     || die "docker is required (needed for buildx)"
   docker buildx version >/dev/null 2>&1 \
     || die "docker buildx plugin is required; install it or upgrade docker (docker buildx is the multi-arch build driver)"
+  # Daemon reachability — `docker buildx version` only checks the plugin,
+  # not whether the daemon is up. Catch a stopped or unauthorized daemon
+  # before any build args get resolved.
+  docker info >/dev/null 2>&1 \
+    || die "docker daemon is not reachable; start it (e.g. start Docker Desktop / OrbStack) or check 'docker info' for details"
 }
 
 # sha256_of <file> prints the file's SHA-256 hex digest. Prefers coreutils
