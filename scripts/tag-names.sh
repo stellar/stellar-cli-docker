@@ -68,6 +68,9 @@ main() {
   test -n "$cli"  || { err "--stellar-cli-version is required"; usage; exit 1; }
   test -n "$rust" || { err "--rust-version is required"; usage; exit 1; }
 
+  # shellcheck disable=SC2119  # no required commands beyond bash itself
+  preflight_checks
+
   local tag="${cli}-rust${rust}"
   if [ "$variant" != "standard" ]; then
     tag="${variant}-${tag}"
