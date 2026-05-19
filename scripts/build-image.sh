@@ -25,9 +25,6 @@ Options:
                                stellar-cli:<cli>-rust<rust>
   --variant <name>             Used for the org.stellar.variant label and
                                for variants[] entries. Default: standard
-  --load                       After building, load the image into the local
-                               docker daemon. Default behaviour with buildx
-                               for single-platform builds.
   --help                       Show this message.
 
 The script builds locally only. Publishing is handled by a separate script.
@@ -44,7 +41,6 @@ main() {
       --platform)            platform="$2"; shift 2;;
       --tag)                 tag="$2"; shift 2;;
       --variant)             variant="$2"; shift 2;;
-      --load)                shift;;  # noop, buildx single-platform loads by default
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
