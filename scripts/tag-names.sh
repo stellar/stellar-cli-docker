@@ -32,9 +32,10 @@ Required:
   --rust-version <v>          e.g. 1.94.0
 
 Options:
-  --platform <p>              linux/amd64, linux/arm64, etc. When set, the
-                              tag includes the per-arch suffix. When omitted,
-                              the tag refers to the multi-arch manifest list.
+  --platform <p>              linux/amd64 or linux/arm64 (Rust tier-1 only).
+                              When set, the tag includes the per-arch suffix.
+                              When omitted, the tag refers to the multi-arch
+                              manifest list.
   --variant <name>            Adds the <name>- prefix. Default: standard
                               (no prefix).
   --help                      Show this message.
