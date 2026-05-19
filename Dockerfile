@@ -12,7 +12,6 @@ ARG RUST_VERSION
 ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
-ARG VARIANT=standard
 ARG BUILD_DATE
 ARG BUILDS_JSON_SHA
 
@@ -52,7 +51,6 @@ ARG RUST_VERSION
 ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
-ARG VARIANT
 ARG BUILD_DATE
 ARG BUILDS_JSON_SHA
 ARG TARGETARCH
@@ -100,6 +98,5 @@ LABEL org.opencontainers.image.title="stellar-cli" \
       org.stellar.stellar-cli-ref="${STELLAR_CLI_REV}" \
       org.stellar.stellar-cli-version="${STELLAR_CLI_VERSION}" \
       org.stellar.wasm-target="wasm32v1-none" \
-      org.stellar.variant="${VARIANT}" \
       org.stellar.build-arch="${TARGETARCH}" \
       org.stellar.builds-json-sha="${BUILDS_JSON_SHA}"

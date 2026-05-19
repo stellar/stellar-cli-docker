@@ -23,8 +23,6 @@ Options:
                                host's native architecture.
   --tag <ref>                  Override the local tag. Default:
                                stellar-cli:<cli>-rust<rust>
-  --variant <name>             Used for the org.stellar.variant label and
-                               for variants[] entries. Default: standard
   --help                       Show this message.
 
 The script builds locally only. Publishing is handled by a separate script.
@@ -32,7 +30,7 @@ EOF
 }
 
 main() {
-  local cli="" rust="" platform="" tag="" variant="standard"
+  local cli="" rust="" platform="" tag=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -40,7 +38,6 @@ main() {
       --rust-version)        rust="$2"; shift 2;;
       --platform)            platform="$2"; shift 2;;
       --tag)                 tag="$2"; shift 2;;
-      --variant)             variant="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -82,7 +79,6 @@ main() {
     --build-arg "RUST_IMAGE_DIGEST=$rust_digest" \
     --build-arg "STELLAR_CLI_REV=$stellar_ref" \
     --build-arg "STELLAR_CLI_VERSION=$cli" \
-    --build-arg "VARIANT=$variant" \
     --build-arg "BUILD_DATE=$build_date" \
     --build-arg "BUILDS_JSON_SHA=$builds_json_sha" \
     --tag "$tag" \
