@@ -3,10 +3,9 @@
 # GitHub Actions workflow. The output drives per-image build jobs.
 #
 # For each stellar_cli_versions[] entry, for each rust in that entry's
-# rust_versions, emits one row per architecture (amd64, arm64) with
-# variant="standard". Rows carry the inputs build-image.sh needs plus the
-# precomputed arch suffix for callers that don't want to translate the
-# platform string themselves.
+# rust_versions, emits one row per architecture (amd64, arm64). Rows carry
+# the inputs build-image.sh needs plus the precomputed arch suffix for
+# callers that don't want to translate the platform string themselves.
 
 set -euo pipefail
 
@@ -23,7 +22,6 @@ Prints {"include": [...]} on stdout. Each include entry has:
   platform              linux/amd64 | linux/arm64
   rust_version          e.g. 1.94.0
   stellar_cli_version   e.g. 26.0.0
-  variant               always "standard" for now
 
 Options:
   --compact   One-line JSON (default; matches what fromJson() consumes).
@@ -53,13 +51,12 @@ main() {
 
   builds_json "${jq_flags[@]}" '
     def archs: ["amd64", "arm64"];
-    def row(cli; rust; variant; arch):
+    def row(cli; rust; arch):
       {
         arch: arch,
         platform: ("linux/" + arch),
         rust_version: rust,
-        stellar_cli_version: cli,
-        variant: variant
+        stellar_cli_version: cli
       };
 
     {
@@ -68,7 +65,7 @@ main() {
           | . as $e
           | $e.rust_versions[] as $rust
           | archs[] as $arch
-          | row($e.version; $rust; "standard"; $arch)
+          | row($e.version; $rust; $arch)
         ]
     }
   '

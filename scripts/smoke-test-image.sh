@@ -18,7 +18,6 @@ Usage: scripts/smoke-test-image.sh \
          --image <ref> \
          --stellar-cli-version <v> \
          --rust-version <v> \
-         [--variant <name>] \
          [--help]
 
 Required:
@@ -30,26 +29,24 @@ Required:
   --rust-version <v>           The rust version the image should label with.
 
 Options:
-  --variant <name>             Expected org.stellar.variant value. Default: standard
   --help                       Show this message.
 
 Checks:
   1. `stellar version --only-version` equals --stellar-cli-version.
   2. `stellar contract build --help` exits 0 (no network).
   3. Labels org.stellar.stellar-cli-version, org.stellar.rust-version,
-     org.stellar.wasm-target, org.stellar.variant all match expectations.
+     and org.stellar.wasm-target match expectations.
 EOF
 }
 
 main() {
-  local image="" cli="" rust="" variant="standard"
+  local image="" cli="" rust=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --image)               image="$2"; shift 2;;
       --stellar-cli-version) cli="$2"; shift 2;;
       --rust-version)        rust="$2"; shift 2;;
-      --variant)             variant="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -64,7 +61,7 @@ main() {
   local rc=0
   check_version_output "$image" "$cli" || rc=1
   check_contract_build_help "$image"   || rc=1
-  check_labels "$image" "$cli" "$rust" "$variant" || rc=1
+  check_labels "$image" "$cli" "$rust" || rc=1
 
   if [ "$rc" -eq 0 ]; then
     log "smoke-test: image $image passed all checks"
@@ -99,7 +96,7 @@ check_contract_build_help() {
 }
 
 check_labels() {
-  local image="$1" cli="$2" rust="$3" variant="$4"
+  local image="$1" cli="$2" rust="$3"
   log "checking org.stellar.* labels ..."
 
   local labels
@@ -109,7 +106,6 @@ check_labels() {
   assert_label "$labels" "org.stellar.stellar-cli-version" "$cli" || rc=1
   assert_label "$labels" "org.stellar.rust-version" "$rust" || rc=1
   assert_label "$labels" "org.stellar.wasm-target" "wasm32v1-none" || rc=1
-  assert_label "$labels" "org.stellar.variant" "$variant" || rc=1
   if [ "$rc" -eq 0 ]; then
     log "  ok"
   fi

@@ -80,65 +80,11 @@
       },
       "minItems": 1,
       "type": "array"
-    },
-    "variants": {
-      "description": "Bespoke (stellar-cli, rust) combinations published under prefixed tags (e.g. :l0-...). Fully specified; do not participate in :<cli> or :latest aliases.",
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "cli_ref": {
-            "$ref": "#/definitions/git_sha",
-            "description": "stellar/stellar-cli commit SHA this variant is built from."
-          },
-          "cli_version": {
-            "$ref": "#/definitions/semver",
-            "description": "stellar-cli version label for this variant. Goes into tags and labels."
-          },
-          "description": {
-            "description": "Human-readable explanation of why this variant exists.",
-            "type": "string"
-          },
-          "labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "Extra OCI labels merged on top of the defaults for this variant.",
-            "type": "object"
-          },
-          "name": {
-            "description": "Short identifier used as the tag prefix, e.g. l0.",
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "type": "string"
-          },
-          "rust_version": {
-            "$ref": "#/definitions/rust_version",
-            "description": "Pinned rust toolchain for this variant. Must be a key in rust_image_digests."
-          },
-          "tags": {
-            "description": "Optional extra tag aliases for this variant, in addition to the canonical :<name>-<cli>-rust<rust> form.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "uniqueItems": true
-          }
-        },
-        "required": [
-          "cli_ref",
-          "cli_version",
-          "description",
-          "name",
-          "rust_version"
-        ],
-        "type": "object"
-      },
-      "type": "array"
     }
   },
   "required": [
     "rust_image_digests",
-    "stellar_cli_versions",
-    "variants"
+    "stellar_cli_versions"
   ],
   "title": "stellar-cli-docker builds.json",
   "type": "object"

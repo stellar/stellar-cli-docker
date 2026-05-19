@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
 # Single source of truth for image tag naming.
 #
-# Given the four ingredients that fully describe an image — stellar-cli
-# version, rust version, optional platform, optional variant — print the
-# canonical tag for that image. Callers (build, publish, smoke-test, docs)
-# go through this script so tag construction stays consistent across the
-# repo.
+# Given the three ingredients that fully describe an image — stellar-cli
+# version, rust version, optional platform — print the canonical tag for
+# that image. Callers (build, publish, smoke-test, docs) go through this
+# script so tag construction stays consistent across the repo.
 #
 # Tag scheme:
-#   standard, multi-arch list:    <cli>-rust<rust>
-#   standard, per-arch:           <cli>-rust<rust>-<arch>
-#   variant <v>, multi-arch list: <v>-<cli>-rust<rust>
-#   variant <v>, per-arch:        <v>-<cli>-rust<rust>-<arch>
+#   multi-arch list:    <cli>-rust<rust>
+#   per-arch:           <cli>-rust<rust>-<arch>
 #
 # Output: exactly one tag on stdout, with no registry/repo prefix. Callers
 # prepend `docker.io/stellar/stellar-cli:` (or whatever) as needed.
@@ -25,7 +22,7 @@ source "$script_dir/lib/common.sh"
 usage() {
   cat <<'EOF'
 Usage: scripts/tag-names.sh --stellar-cli-version <v> --rust-version <v> \
-                            [--platform <p>] [--variant <name>] [--help]
+                            [--platform <p>] [--help]
 
 Required:
   --stellar-cli-version <v>   e.g. 26.0.0
@@ -36,8 +33,6 @@ Options:
                               When set, the tag includes the per-arch suffix.
                               When omitted, the tag refers to the multi-arch
                               manifest list.
-  --variant <name>            Adds the <name>- prefix. Default: standard
-                              (no prefix).
   --help                      Show this message.
 
 Example:
@@ -46,21 +41,17 @@ Example:
   $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0 \
       --platform linux/amd64
   26.0.0-rust1.94.0-amd64
-  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0 \
-      --platform linux/arm64 --variant l0
-  l0-26.0.0-rust1.94.0-arm64
 EOF
 }
 
 main() {
-  local cli="" rust="" platform="" variant="standard"
+  local cli="" rust="" platform=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --stellar-cli-version) cli="$2"; shift 2;;
       --rust-version)        rust="$2"; shift 2;;
       --platform)            platform="$2"; shift 2;;
-      --variant)             variant="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -73,10 +64,6 @@ main() {
   preflight_checks
 
   local tag="${cli}-rust${rust}"
-  if [ "$variant" != "standard" ]; then
-    tag="${variant}-${tag}"
-  fi
-
   if [ -n "$platform" ]; then
     tag="${tag}-$(arch_for_platform "$platform")"
   fi
