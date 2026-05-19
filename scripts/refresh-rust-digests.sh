@@ -55,7 +55,7 @@ main() {
     esac
   done
 
-  require_cmd jq docker
+  preflight_checks jq docker
 
   local versions
   if [ -n "$only_version" ]; then

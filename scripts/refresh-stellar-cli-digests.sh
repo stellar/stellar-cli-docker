@@ -58,7 +58,7 @@ main() {
     esac
   done
 
-  require_cmd jq git
+  preflight_checks jq git
 
   local versions
   if [ -n "$only_version" ]; then

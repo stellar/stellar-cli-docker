@@ -49,7 +49,7 @@ main() {
   test -n "$cli"  || { err "--stellar-cli-version is required"; usage; exit 1; }
   test -n "$rust" || { err "--rust-version is required"; usage; exit 1; }
 
-  require_cmd jq docker
+  preflight_checks jq docker sha256
 
   assert_pair_declared "$cli" "$rust"
 

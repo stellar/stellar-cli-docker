@@ -40,7 +40,7 @@ main() {
     *) err "unknown argument: $1"; usage; exit 1;;
   esac
 
-  require_cmd jq check-jsonschema
+  preflight_checks jq check-jsonschema
 
   local rc=0
 
