@@ -1,0 +1,47 @@
+---
+name: build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-build:
+    name: build & smoke-test newest image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: resolve newest pair
+        id: pair
+        run: |
+          {
+            echo "cli=$(./scripts/newest-pair.sh --stellar-cli-version)"
+            echo "rust=$(./scripts/newest-pair.sh --rust-version)"
+          } >> "$GITHUB_OUTPUT"
+      - name: build image
+        run: |
+          ./scripts/build-image.sh \
+            --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
+            --rust-version "${{ steps.pair.outputs.rust }}"
+      - name: smoke test
+        run: |
+          ./scripts/smoke-test-image.sh \
+            --image "stellar-cli:${{ steps.pair.outputs.cli }}-rust${{ steps.pair.outputs.rust }}" \
+            --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
+            --rust-version "${{ steps.pair.outputs.rust }}"
+
+  complete:
+    if: always()
+    needs:
+      - smoke-build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: check upstream jobs
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
