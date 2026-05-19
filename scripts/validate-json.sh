@@ -120,7 +120,7 @@ check_cross_field_constraints() {
     | .version')"
   if [ -n "$bad_default" ]; then
     while IFS= read -r v; do
-      err "stellar_cli_versions[$v].default_rust is not in its rust_versions"
+      err "stellar_cli_versions(version=$v).default_rust is not in its rust_versions"
     done <<<"$bad_default"
     rc=1
   fi
