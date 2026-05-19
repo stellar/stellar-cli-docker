@@ -87,13 +87,14 @@ check_sorted_keys() {
   return "$rc"
 }
 
-# Prints a unified diff between the file as-is (key order) and the file with
-# every object's keys sorted. Helps the author find the offending nesting.
+# Prints a unified diff from the file as-is to the file with every object's
+# keys sorted. Reads as "remove these (-) and add these (+)" so the offending
+# nesting is easy to find.
 print_sort_diff() {
   local file="$1"
   diff -u \
-    <(jq --sort-keys . "$file") \
     <(jq . "$file") \
+    <(jq --sort-keys . "$file") \
     | sed 's/^/    /' \
     || true
 }
