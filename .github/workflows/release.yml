@@ -29,38 +29,52 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: create release branch
-        run: git checkout -b "release/v${{ inputs.stellar_cli_version }}"
-
       - name: stage builds.json
+        id: prepare
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./scripts/release-prepare.sh \
-            --stellar-cli-version "${{ inputs.stellar_cli_version }}"
+          tag="$(./scripts/release-prepare.sh \
+            --stellar-cli-version "${{ inputs.stellar_cli_version }}")"
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: create release branch
+        run: |
+          git checkout -b "release/${{ steps.prepare.outputs.release_tag }}"
 
       - name: commit and push
         run: |
           git add builds.json
-          git commit -m "Release stellar-cli ${{ inputs.stellar_cli_version }}."
-          git push origin "release/v${{ inputs.stellar_cli_version }}"
+          git commit -m "Release ${{ steps.prepare.outputs.release_tag }}."
+          git push origin "release/${{ steps.prepare.outputs.release_tag }}"
 
       - name: open pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.stellar_cli_version }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
           ACTOR: ${{ github.actor }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # Title and notes wording depend on whether this is a fresh
+          # release or a refresh iteration of an existing release.
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            title="Refresh stellar-cli ${VERSION} (${RELEASE_TAG#v})"
+            kind="refresh"
+          else
+            title="Release stellar-cli ${VERSION}"
+            kind="new release"
+          fi
+
           gh pr create \
             --base main \
-            --head "release/v${VERSION}" \
-            --title "Release stellar-cli ${VERSION}" \
+            --head "release/${RELEASE_TAG}" \
+            --title "$title" \
             --body "$(cat <<EOF
           ### What
 
-          Stage the stellar-cli ${VERSION} release. \`builds.json\` updated with the new cli entry, its upstream commit ref, and the pinned base image digests for the paired rust versions.
+          Stage a $kind for stellar-cli ${VERSION}. \`builds.json\` is updated with the rust pairings auto-picked from the current last two minor stable releases on \`rust-lang/rust\`, and any new \`rust_image_digests\` entries are resolved.
 
           ### Why
 
@@ -70,16 +84,17 @@ jobs:
 
           See [RELEASE.md](./RELEASE.md) for the full release process.
 
-          Push any further changes to the \`release/v${VERSION}\` branch that are needed in this release (for example, adjusting the paired \`rust_versions\` if the auto-pick isn't right for this release).
+          Push any further changes to the \`release/${RELEASE_TAG}\` branch that are needed in this release (for example, adjusting the paired \`rust_versions\` if the auto-pick isn't right for this iteration).
 
-          When this PR is reviewed and merged, create a GitHub Release for this version by going to this link:
+          When this PR is reviewed and merged, create a GitHub Release by going to:
 
-          https://github.com/${REPO}/releases/new?tag=v${VERSION}&title=${VERSION}&target=main
+          https://github.com/${REPO}/releases/new?tag=${RELEASE_TAG}&title=${RELEASE_TAG#v}&target=main
 
           The publish workflow fires on the release-published event and:
-          - Builds and pushes per-arch images for each declared (cli, rust) pair
-          - Generates SLSA build provenance + SPDX SBOM attestations on each per-arch image (buildx-native + GitHub-native chains)
-          - Attaches the SBOM and provenance files to the GitHub Release, with per-arch digests in the body
+          - Builds and pushes per-arch images for any new (cli, rust) pairs; existing pairs are skipped with a warning (per-arch tags are immutable)
+          - Generates SLSA build provenance + SPDX SBOM attestations on each newly-built image (buildx-native + GitHub-native chains)
+          - Re-points the \`:${VERSION}\` and (if newest) \`:latest\` aliases
+          - Attaches the SBOM and provenance files to the new GitHub Release, with per-arch digests in the body
           EOF
           )"
 
