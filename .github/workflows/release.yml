@@ -8,10 +8,6 @@ on:
         description: stellar-cli version to release (e.g. 26.1.0; must not already be in builds.json)
         required: true
         type: string
-      rust_versions:
-        description: "Optional: comma-separated rust versions to pair with (default: last 2 minor stable)"
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -40,13 +36,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          extra=()
-          if [ -n "${{ inputs.rust_versions }}" ]; then
-            extra+=(--rust-versions "${{ inputs.rust_versions }}")
-          fi
           ./scripts/release-prepare.sh \
-            --stellar-cli-version "${{ inputs.stellar_cli_version }}" \
-            "${extra[@]}"
+            --stellar-cli-version "${{ inputs.stellar_cli_version }}"
 
       - name: commit and push
         run: |
