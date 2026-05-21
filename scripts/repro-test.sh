@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Verify WASM reproducibility: clone an upstream contracts repo at a pinned
-# revision, then for each named contract subdir build twice inside the
-# image and confirm the .wasm artifacts are byte-identical.
+# Verify WASM reproducibility: clone an upstream contracts repo, then for
+# each named contract subdir build twice inside the image and confirm the
+# .wasm artifacts are byte-identical.
 #
-# Defaults to stellar/soroban-examples@v23.0.0 and three representative
-# contracts. Cloning at CI time (rather than vendoring) mirrors how a real
-# consumer uses the image — git clone their contracts, docker run the
-# build. Same-arch only; cross-arch byte equality is not promised.
+# Defaults to stellar/soroban-examples@main and three representative
+# contracts. We default to `main` (not a release tag) so upstream
+# regressions — whether in the contracts or in our image — surface in CI
+# immediately rather than at the next manual pin bump. Same-arch only;
+# cross-arch byte equality is not promised.
 
 set -euo pipefail
 
@@ -15,7 +16,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/lib/common.sh"
 
 DEFAULT_REPO=https://github.com/stellar/soroban-examples.git
-DEFAULT_REV=v23.0.0
+DEFAULT_REV=main
 DEFAULT_CONTRACTS=(token liquidity_pool atomic_swap)
 
 # Script-level state read by the EXIT trap, since `local` vars in main()
