@@ -81,6 +81,13 @@ docker run --rm stellar-cli:26.0.0-rust1.94.0 contract build --help
 Requirements: `docker` (with `buildx`), `jq`, `check-jsonschema` (pip /
 pipx install).
 
+## Releasing
+
+Maintainers: see [`RELEASE.md`](./RELEASE.md) for the end-to-end release
+process — how `builds.json` works, what the publish workflow does on a
+`v*` tag push, the tag-immutability guard, and how to verify a freshly
+published image.
+
 ## License
 
 [Apache-2.0](./LICENSE).
