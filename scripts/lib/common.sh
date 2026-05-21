@@ -35,6 +35,16 @@ require_cmd() {
   done
 }
 
+# require_value <flag> <value>
+# Aborts with a clear error if <value> is empty. Use at the top of each
+# --flag case arm:  require_value "$1" "${2:-}"
+# Prevents the unhelpful "$2: unbound variable" crash that `set -u`
+# emits when a user passes a flag with no value (e.g. `--image` at EOL).
+require_value() {
+  local flag="$1" value="${2:-}"
+  test -n "$value" || die "missing value for $flag"
+}
+
 # Minimum bash version this project's scripts rely on. Bump in one place.
 # 4.3 is what `local -n` (used by the apply_updates helpers) requires;
 # 4.0 covers `declare -A`. macOS ships bash 3.2 by default.

@@ -48,7 +48,7 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --rust-version) only_version="$2"; shift 2;;
+      --rust-version) require_value "$1" "${2:-}"; only_version="$2"; shift 2;;
       --dry-run)      dry_run=1; shift;;
       -h|--help)      usage; exit 0;;
       *)              err "unknown argument: $1"; usage; exit 1;;

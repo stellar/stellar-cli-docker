@@ -34,10 +34,10 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stellar-cli-version) cli="$2"; shift 2;;
-      --rust-version)        rust="$2"; shift 2;;
-      --platform)            platform="$2"; shift 2;;
-      --tag)                 tag="$2"; shift 2;;
+      --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
+      --rust-version)        require_value "$1" "${2:-}"; rust="$2"; shift 2;;
+      --platform)            require_value "$1" "${2:-}"; platform="$2"; shift 2;;
+      --tag)                 require_value "$1" "${2:-}"; tag="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac

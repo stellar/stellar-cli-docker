@@ -36,8 +36,8 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stellar-cli-version) cli="$2"; shift 2;;
-      --metadata-dir)        metadata_dir="$2"; shift 2;;
+      --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
+      --metadata-dir)        require_value "$1" "${2:-}"; metadata_dir="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac

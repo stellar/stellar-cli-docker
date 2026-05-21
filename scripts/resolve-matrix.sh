@@ -43,7 +43,7 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stellar-cli-version) only_cli="$2"; shift 2;;
+      --stellar-cli-version) require_value "$1" "${2:-}"; only_cli="$2"; shift 2;;
       --compact)             mode="compact"; shift;;
       --pretty)              mode="pretty"; shift;;
       -h|--help)             usage; exit 0;;

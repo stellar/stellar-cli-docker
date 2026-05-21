@@ -41,7 +41,7 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --image)   image="$2"; shift 2;;
+      --image)   require_value "$1" "${2:-}"; image="$2"; shift 2;;
       -h|--help) usage; exit 0;;
       *)         err "unknown argument: $1"; usage; exit 1;;
     esac
