@@ -111,8 +111,10 @@ test_one_contract() {
 
   local hash_a hash_b
   hash_a="$(build_and_hash "$image" "$contract_dir")" || return 1
+  assert_sha256 "$hash_a" "build A" || return 1
   log "  build A: $hash_a"
   hash_b="$(build_and_hash "$image" "$contract_dir")" || return 1
+  assert_sha256 "$hash_b" "build B" || return 1
   log "  build B: $hash_b"
 
   if [ "$hash_a" = "$hash_b" ]; then
@@ -120,6 +122,17 @@ test_one_contract() {
     return 0
   fi
   err "  WASM hash mismatch — build is NOT reproducible"
+  return 1
+}
+
+# Reject any hash output that isn't a 64-char hex digest. Belt-and-braces
+# on top of `set -o pipefail` inside the container: if extraction ever
+# returns an empty or unexpected shape, fail loudly here instead of letting
+# a degenerate comparison silently pass.
+assert_sha256() {
+  local hash="$1" label="$2"
+  [[ "$hash" =~ ^[0-9a-f]{64}$ ]] && return 0
+  err "  $label produced an invalid hash: '$hash'"
   return 1
 }
 
