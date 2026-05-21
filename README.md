@@ -55,6 +55,7 @@ compare the resulting WASM sha256.
 | `scripts/validate-json.sh`               | Validates every `*.json` for sorted keys and `builds.json` for schema + cross-field constraints.                                                                              |
 | `scripts/refresh-rust-digests.sh`        | Fills blank `rust_image_digests` entries by inspecting `rust:<v>-slim-bookworm` upstream. Does not touch already-pinned digests unless asked per-version.                     |
 | `scripts/refresh-stellar-cli-digests.sh` | Fills blank `stellar_cli_versions[].ref` entries by resolving the matching `v<version>` git tag in `stellar/stellar-cli`. Same per-target opt-in shape as the rust refresher. |
+| `scripts/verify-image.sh`                | Consumer-facing verifier. Wraps `gh attestation verify` for both the SLSA build provenance and the SPDX SBOM attestations against a per-arch image digest.                    |
 | `scripts/lib/common.sh`                  | Shared helpers sourced by the other scripts.                                                                                                                                  |
 
 ## Local development
