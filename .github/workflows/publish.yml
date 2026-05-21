@@ -22,6 +22,10 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install check-jsonschema
+        run: pipx install check-jsonschema
+      - name: validate builds.json
+        run: ./scripts/validate-json.sh
       - name: resolve matrix
         id: resolve
         run: echo "matrix=$(./scripts/resolve-matrix.sh)" >> "$GITHUB_OUTPUT"
