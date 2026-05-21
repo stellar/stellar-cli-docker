@@ -85,16 +85,26 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: refuse to overwrite existing tag
+      - name: check whether already published
+        id: skip
         run: |
           if docker buildx imagetools inspect "${{ steps.tag.outputs.image }}" >/dev/null 2>&1; then
-            echo "::error::tag ${{ steps.tag.outputs.image }} already exists; per-arch tags are immutable and never overwritten"
-            echo "To genuinely re-publish (e.g. a corrupt push), delete the tag in Docker Hub by hand first, then re-run."
-            exit 1
+            echo "::warning::${{ steps.tag.outputs.image }} already exists in the registry; skipping build (per-arch tags are immutable)"
+            {
+              echo "## ⚠️ Skipped — already published"
+              echo ""
+              echo "\`${{ steps.tag.outputs.image }}\` was already in the registry."
+              echo ""
+              echo "Per-arch tags are immutable, so no build or push happened for this row. If this is a corrupt-push recovery, delete the tag in Docker Hub by hand and re-run the workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: build metadata
         id: meta
+        if: steps.skip.outputs.skipped != 'true'
         run: |
           {
             echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -103,6 +113,7 @@ jobs:
 
       - name: build and push
         id: build
+        if: steps.skip.outputs.skipped != 'true'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -120,6 +131,7 @@ jobs:
             BUILDS_JSON_SHA=${{ steps.meta.outputs.builds_json_sha }}
 
       - name: generate SBOM file
+        if: steps.skip.outputs.skipped != 'true'
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ steps.tag.outputs.image }}@${{ steps.build.outputs.digest }}
@@ -130,6 +142,7 @@ jobs:
 
       - name: attest build provenance
         id: attest-prov
+        if: steps.skip.outputs.skipped != 'true'
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}
@@ -138,6 +151,7 @@ jobs:
 
       - name: attest SBOM
         id: attest-sbom
+        if: steps.skip.outputs.skipped != 'true'
         uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}
@@ -146,6 +160,7 @@ jobs:
           push-to-registry: false
 
       - name: write per-arch metadata
+        if: steps.skip.outputs.skipped != 'true'
         run: |
           out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.json"
           jq -n \
@@ -159,11 +174,13 @@ jobs:
             > "$out"
 
       - name: rename provenance bundle
+        if: steps.skip.outputs.skipped != 'true'
         run: |
           cp "${{ steps.attest-prov.outputs.bundle-path }}" \
             "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.intoto.jsonl"
 
       - name: upload release artifacts
+        if: steps.skip.outputs.skipped != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}
@@ -202,8 +219,13 @@ jobs:
               --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$rust" \
               --platform linux/arm64)"
             if docker buildx imagetools inspect "$REGISTRY:$list_tag" >/dev/null 2>&1; then
-              echo "::error::tag $REGISTRY:$list_tag already exists; manifest lists are immutable and never overwritten"
-              exit 1
+              echo "::warning::manifest list $REGISTRY:$list_tag already exists; skipping (lists are immutable)"
+              {
+                echo "## ⚠️ Manifest list skipped — already published"
+                echo ""
+                echo "\`$REGISTRY:$list_tag\` was already in the registry."
+              } >> "$GITHUB_STEP_SUMMARY"
+              continue
             fi
             echo "::group::manifest $REGISTRY:$list_tag"
             docker buildx imagetools create \
