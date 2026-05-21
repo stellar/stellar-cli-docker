@@ -41,8 +41,11 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
-            # tag_name is "v<version>"; strip the leading v.
-            version="${RELEASE_TAG#v}"
+            # Tag is "v<version>" or "v<version>-<N>" (refresh iterations).
+            # Strip leading "v" and trailing "-<N>" if present to derive
+            # the stellar-cli version.
+            no_prefix="${RELEASE_TAG#v}"
+            version="${no_prefix%%-*}"
           else
             version="$DISPATCH_VERSION"
           fi
@@ -179,8 +182,30 @@ jobs:
           cp "${{ steps.attest-prov.outputs.bundle-path }}" \
             "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.intoto.jsonl"
 
+      # Skipped pairs still need metadata so the release-body composer can
+      # show the full state of every declared pair, not just the freshly
+      # built ones. Queries the existing tag's manifest digest from the
+      # registry and writes the same meta-*.json shape we'd write on a
+      # fresh build (just without the SBOM/provenance files — those stay
+      # attached to the previously-published image's attestation store).
+      - name: write per-arch metadata (skipped pair)
+        if: steps.skip.outputs.skipped == 'true'
+        run: |
+          existing_digest="$(docker buildx imagetools inspect \
+            "${{ steps.tag.outputs.image }}" \
+            --format '{{.Manifest.Digest}}')"
+          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.json"
+          jq -n \
+            --arg arch "${{ matrix.arch }}" \
+            --arg cli "${{ matrix.stellar_cli_version }}" \
+            --arg digest "$existing_digest" \
+            --arg image "${{ steps.tag.outputs.image }}" \
+            --arg rust "${{ matrix.rust_version }}" \
+            --arg tag "${{ steps.tag.outputs.tag }}" \
+            '{arch: $arch, digest: $digest, image: $image, rust_version: $rust, stellar_cli_version: $cli, tag: $tag}' \
+            > "$out"
+
       - name: upload release artifacts
-        if: steps.skip.outputs.skipped != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}
@@ -189,7 +214,9 @@ jobs:
             prov-*.intoto.jsonl
             meta-*.json
           retention-days: 7
-          if-no-files-found: error
+          # warn (not error) because the skipped path only produces meta-*.json;
+          # the sbom-*/prov-* globs find nothing in that case.
+          if-no-files-found: warn
 
   manifest:
     name: assemble manifest lists
