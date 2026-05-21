@@ -54,11 +54,14 @@ main() {
   builds_json "${jq_flags[@]}" '
     . as $b
     | def archs: ["amd64", "arm64"];
+      def digest_for(rust):
+        $b.rust_image_digests[rust]
+        // error("no rust_image_digests entry for rust version \(rust)");
       def row(cli; ref; rust; arch):
         {
           arch: arch,
           platform: ("linux/" + arch),
-          rust_image_digest: $b.rust_image_digests[rust],
+          rust_image_digest: digest_for(rust),
           rust_version: rust,
           stellar_cli_ref: ref,
           stellar_cli_version: cli
