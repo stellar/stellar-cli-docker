@@ -10,7 +10,7 @@ Each release publishes to `docker.io/stellar/stellar-cli`:
 - **Multi-arch manifest list** per `(cli, rust)` pair — `:<cli>-rust<rust>` resolves to the right per-arch image at pull time.
 - **Convenience aliases** — `:<cli>` points at the manifest list for that cli paired with its `default_rust`. `:latest` points at the newest declared cli's default-rust manifest list. **Aliases must never be used in `bldimg`** — they move.
 - **Two attestation chains** — buildx-native (SLSA build provenance + SPDX SBOM attached in the registry alongside the image) and GitHub-native (the same predicates signed and stored in the repo's attestation store, verifiable via `gh attestation verify`).
-- **A GitHub Release** on `v*` tag push, with per-architecture digests in the body and the SBOM + provenance files attached as downloadable assets.
+- **A GitHub Release** for every publish run, with per-architecture digests in the body and the SBOM + provenance files attached as downloadable assets. The release is created by a maintainer following the link in the release PR (see [Releasing](#releasing--new-cli-version-or-refreshing-an-existing-one) below); publishing it triggers the workflow that enriches the release with the images' digests and supply-chain artifacts.
 
 The single source of truth for which `(cli, rust)` pairs we publish is [`builds.json`](./builds.json). Releases happen one stellar-cli version per workflow run.
 
