@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       stellar_cli_version:
-        description: stellar-cli version to release (e.g. 26.1.0; must not already be in builds.json)
+        description: stellar-cli version to release (e.g. 26.1.0 for a new release, or an existing version like 26.0.0 to refresh its rust pairings)
         required: true
         type: string
 
