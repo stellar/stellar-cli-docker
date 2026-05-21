@@ -53,10 +53,10 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --image)        image="$2"; shift 2;;
-      --repo)         repo="$2"; shift 2;;
-      --rev)          rev="$2"; shift 2;;
-      --contract)     contracts+=("$2"); shift 2;;
+      --image)        require_value "$1" "${2:-}"; image="$2"; shift 2;;
+      --repo)         require_value "$1" "${2:-}"; repo="$2"; shift 2;;
+      --rev)          require_value "$1" "${2:-}"; rev="$2"; shift 2;;
+      --contract)     require_value "$1" "${2:-}"; contracts+=("$2"); shift 2;;
       --keep-workdir) keep=1; shift;;
       -h|--help)      usage; exit 0;;
       *)              err "unknown argument: $1"; usage; exit 1;;
