@@ -8,9 +8,9 @@ on:
         description: stellar-cli version to publish (must be declared in builds.json, e.g. 26.0.0)
         required: true
         type: string
-  push:
-    tags:
-      - v*
+  release:
+    types:
+      - published
 
 permissions:
   contents: write       # release job creates/updates the GitHub Release
@@ -36,13 +36,17 @@ jobs:
         run: ./scripts/validate-json.sh
       - name: scope to one cli version
         id: scope
+        env:
+          DISPATCH_VERSION: ${{ inputs.stellar_cli_version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            version="${{ inputs.stellar_cli_version }}"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # tag_name is "v<version>"; strip the leading v.
+            version="${RELEASE_TAG#v}"
           else
-            tag="${GITHUB_REF#refs/tags/}"
-            version="${tag#v}"
+            version="$DISPATCH_VERSION"
           fi
+          test -n "$version" || { echo "::error::could not determine stellar_cli_version from event"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: resolve matrix
         id: resolve
@@ -253,8 +257,10 @@ jobs:
           fi
 
   release:
-    name: github release with sbom and provenance
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: enrich github release with sbom and provenance
+    # Only runs when this workflow was triggered by a `release: published`
+    # event — workflow_dispatch has no release to update.
+    if: github.event_name == 'release'
     needs: [matrix, aliases]
     runs-on: ubuntu-24.04
     env:
@@ -268,16 +274,18 @@ jobs:
           path: release-artifacts
           pattern: release-artifacts-*
           merge-multiple: true
-      - name: compose release body
+      - name: compose structural body section
         run: |
           ./scripts/release-body.sh \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --metadata-dir release-artifacts \
             > release-body.md
-      - name: create / update the github release
+      - name: update the github release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           body_path: release-body.md
+          append_body: true
           files: |
             release-artifacts/sbom-*.spdx.json
             release-artifacts/prov-*.intoto.jsonl
