@@ -212,8 +212,12 @@ make_cli_entry() {
   shift 3
   local -a rust_versions=("$@")
 
+  # Sort numerically so 1.100.0 lands AFTER 1.99.0; default jq `sort` on
+  # strings would put "1.100.0" before "1.99.0" lexicographically.
   local rust_array
-  rust_array="$(printf '%s\n' "${rust_versions[@]}" | jq -R . | jq -s 'sort')"
+  rust_array="$(printf '%s\n' "${rust_versions[@]}" \
+    | jq -R . \
+    | jq -s 'sort_by(split(".") | map(tonumber))')"
 
   jq -n \
     --arg default_rust "$default_rust" \
@@ -238,8 +242,11 @@ pick_release_tag() {
   local cli_pat
   cli_pat="$(printf '%s' "$cli" | sed 's/\./\\./g')"
 
+  # Let gh failures (auth, network, API outage) propagate — silently
+  # treating them as "no releases" would suggest tag v<cli> even when one
+  # really exists, leading to a confusing create-release link in the PR.
   local existing_tags
-  existing_tags="$(gh release list --limit 200 --json tagName --jq '.[].tagName' 2>/dev/null || true)"
+  existing_tags="$(gh release list --limit 200 --json tagName --jq '.[].tagName')"
 
   if ! grep -qE "^v${cli_pat}\$" <<<"$existing_tags"; then
     printf 'v%s\n' "$cli"
