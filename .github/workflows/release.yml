@@ -1,0 +1,103 @@
+---
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      stellar_cli_version:
+        description: stellar-cli version to release (e.g. 26.1.0; must not already be in builds.json)
+        required: true
+        type: string
+      rust_versions:
+        description: "Optional: comma-separated rust versions to pair with (default: last 2 minor stable)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    name: prepare release ${{ inputs.stellar_cli_version }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: install check-jsonschema
+        run: pipx install check-jsonschema
+
+      - name: configure git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: create release branch
+        run: git checkout -b "release/v${{ inputs.stellar_cli_version }}"
+
+      - name: stage builds.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          extra=()
+          if [ -n "${{ inputs.rust_versions }}" ]; then
+            extra+=(--rust-versions "${{ inputs.rust_versions }}")
+          fi
+          ./scripts/release-prepare.sh \
+            --stellar-cli-version "${{ inputs.stellar_cli_version }}" \
+            "${extra[@]}"
+
+      - name: commit and push
+        run: |
+          git add builds.json
+          git commit -m "Release stellar-cli ${{ inputs.stellar_cli_version }}."
+          git push origin "release/v${{ inputs.stellar_cli_version }}"
+
+      - name: open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.stellar_cli_version }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "release/v${VERSION}" \
+            --title "Release stellar-cli ${VERSION}" \
+            --body "$(cat <<EOF
+          ### What
+
+          Stage the stellar-cli ${VERSION} release. \`builds.json\` updated with the new cli entry, its upstream commit ref, and the pinned base image digests for the paired rust versions.
+
+          ### Why
+
+          Triggered by @${ACTOR} in ${RUN_URL}.
+
+          ### What is next
+
+          See [RELEASE.md](./RELEASE.md) for the full release process.
+
+          Push any further changes to the \`release/v${VERSION}\` branch that are needed in this release (for example, adjusting the paired \`rust_versions\` if the auto-pick isn't right for this release).
+
+          When this PR is reviewed and merged, create a GitHub Release for this version by going to this link:
+
+          https://github.com/${REPO}/releases/new?tag=v${VERSION}&title=${VERSION}&target=main
+
+          The publish workflow fires on the release-published event and:
+          - Builds and pushes per-arch images for each declared (cli, rust) pair
+          - Generates SLSA build provenance + SPDX SBOM attestations on each per-arch image (buildx-native + GitHub-native chains)
+          - Attaches the SBOM and provenance files to the GitHub Release, with per-arch digests in the body
+          EOF
+          )"
+
+  complete:
+    if: always()
+    needs:
+      - prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - name: check upstream jobs
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
