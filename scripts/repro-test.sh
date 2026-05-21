@@ -146,14 +146,18 @@ cleanup() {
 
 # Build the contract and print the sha256 of the produced .wasm.
 # Cleans /source/target before building so each call starts cold.
+#
+# Uses bash with `set -o pipefail` inside the container so a failing
+# sha256sum (e.g. glob matches no .wasm because the build silently broke)
+# is propagated as a non-zero exit, not swallowed by the trailing `awk`.
 build_and_hash() {
   local image="$1" contract_dir="$2"
   docker run --rm \
-    --entrypoint sh \
+    --entrypoint bash \
     -v "$contract_dir:/source" \
     "$image" \
     -c '
-      set -e
+      set -eo pipefail
       rm -rf /source/target
       /usr/local/bin/stellar contract build --locked >&2
       sha256sum /source/target/wasm32v1-none/release/*.wasm | awk "{print \$1}"
