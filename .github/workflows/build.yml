@@ -35,6 +35,10 @@ jobs:
             --image "stellar-cli:${{ steps.pair.outputs.cli }}-rust${{ steps.pair.outputs.rust }}" \
             --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
             --rust-version "${{ steps.pair.outputs.rust }}"
+      - name: wasm reproducibility
+        run: |
+          ./scripts/repro-test.sh \
+            --image "stellar-cli:${{ steps.pair.outputs.cli }}-rust${{ steps.pair.outputs.rust }}"
 
   complete:
     if: always()
