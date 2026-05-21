@@ -20,7 +20,9 @@ Usage: scripts/resolve-matrix.sh [--compact|--pretty] [--help]
 Prints {"include": [...]} on stdout. Each include entry has:
   arch                  amd64 | arm64
   platform              linux/amd64 | linux/arm64
+  rust_image_digest     sha256:... (pinned base image digest)
   rust_version          e.g. 1.94.0
+  stellar_cli_ref       40-char git SHA from stellar/stellar-cli
   stellar_cli_version   e.g. 26.0.0
 
 Options:
@@ -50,24 +52,27 @@ main() {
   fi
 
   builds_json "${jq_flags[@]}" '
-    def archs: ["amd64", "arm64"];
-    def row(cli; rust; arch):
-      {
-        arch: arch,
-        platform: ("linux/" + arch),
-        rust_version: rust,
-        stellar_cli_version: cli
-      };
+    . as $b
+    | def archs: ["amd64", "arm64"];
+      def row(cli; ref; rust; arch):
+        {
+          arch: arch,
+          platform: ("linux/" + arch),
+          rust_image_digest: $b.rust_image_digests[rust],
+          rust_version: rust,
+          stellar_cli_ref: ref,
+          stellar_cli_version: cli
+        };
 
-    {
-      include:
-        [ .stellar_cli_versions[]
-          | . as $e
-          | $e.rust_versions[] as $rust
-          | archs[] as $arch
-          | row($e.version; $rust; $arch)
-        ]
-    }
+      {
+        include:
+          [ .stellar_cli_versions[]
+            | . as $e
+            | $e.rust_versions[] as $rust
+            | archs[] as $arch
+            | row($e.version; $e.ref; $rust; $arch)
+          ]
+      }
   '
 }
 

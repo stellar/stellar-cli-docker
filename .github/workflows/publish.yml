@@ -1,0 +1,177 @@
+---
+name: publish
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: docker.io/stellar/stellar-cli
+
+jobs:
+  matrix:
+    name: resolve matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: resolve matrix
+        id: resolve
+        run: echo "matrix=$(./scripts/resolve-matrix.sh)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.stellar_cli_version }} rust${{ matrix.rust_version }} ${{ matrix.arch }}
+    needs: matrix
+    strategy:
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      fail-fast: false
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: resolve tag
+        id: tag
+        run: |
+          tag="$(./scripts/tag-names.sh \
+            --stellar-cli-version ${{ matrix.stellar_cli_version }} \
+            --rust-version ${{ matrix.rust_version }} \
+            --platform ${{ matrix.platform }})"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "image=$REGISTRY:$tag" >> "$GITHUB_OUTPUT"
+
+      - name: login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: refuse to overwrite existing tag
+        run: |
+          if docker buildx imagetools inspect "${{ steps.tag.outputs.image }}" >/dev/null 2>&1; then
+            echo "::error::tag ${{ steps.tag.outputs.image }} already exists; per-arch tags are immutable and never overwritten"
+            echo "To genuinely re-publish (e.g. a corrupt push), delete the tag in Docker Hub by hand first, then re-run."
+            exit 1
+          fi
+
+      - name: build metadata
+        id: meta
+        run: |
+          {
+            echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "builds_json_sha=$(sha256sum builds.json | awk '{print $1}')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: set up buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: build and push
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          push: true
+          platforms: ${{ matrix.platform }}
+          tags: ${{ steps.tag.outputs.image }}
+          build-args: |
+            RUST_VERSION=${{ matrix.rust_version }}
+            RUST_IMAGE_DIGEST=${{ matrix.rust_image_digest }}
+            STELLAR_CLI_REF=${{ matrix.stellar_cli_ref }}
+            STELLAR_CLI_VERSION=${{ matrix.stellar_cli_version }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            BUILDS_JSON_SHA=${{ steps.meta.outputs.builds_json_sha }}
+
+  manifest:
+    name: assemble manifest lists
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: create manifest list per (cli, rust) pair
+        run: |
+          while IFS= read -r row; do
+            cli="$(jq -r '.cli' <<<"$row")"
+            rust="$(jq -r '.rust' <<<"$row")"
+            list_tag="$(./scripts/tag-names.sh \
+              --stellar-cli-version "$cli" --rust-version "$rust")"
+            amd64_tag="$(./scripts/tag-names.sh \
+              --stellar-cli-version "$cli" --rust-version "$rust" \
+              --platform linux/amd64)"
+            arm64_tag="$(./scripts/tag-names.sh \
+              --stellar-cli-version "$cli" --rust-version "$rust" \
+              --platform linux/arm64)"
+            if docker buildx imagetools inspect "$REGISTRY:$list_tag" >/dev/null 2>&1; then
+              echo "::error::tag $REGISTRY:$list_tag already exists; manifest lists are immutable and never overwritten"
+              exit 1
+            fi
+            echo "::group::manifest $REGISTRY:$list_tag"
+            docker buildx imagetools create \
+              --tag "$REGISTRY:$list_tag" \
+              "$REGISTRY:$amd64_tag" \
+              "$REGISTRY:$arm64_tag"
+            echo "::endgroup::"
+          done < <(jq -c '
+            .stellar_cli_versions[]
+            | .version as $v
+            | .rust_versions[]
+            | {cli: $v, rust: .}
+          ' builds.json)
+
+  aliases:
+    name: publish moving aliases
+    needs: manifest
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: publish :<cli> and :latest aliases
+        run: |
+          newest_cli="$(./scripts/newest-pair.sh --stellar-cli-version)"
+          while IFS= read -r cli; do
+            default_rust="$(jq -r --arg cli "$cli" \
+              '.stellar_cli_versions[] | select(.version == $cli) | .default_rust' \
+              builds.json | head -n1)"
+            target_tag="$(./scripts/tag-names.sh \
+              --stellar-cli-version "$cli" --rust-version "$default_rust")"
+            target="$REGISTRY:$target_tag"
+
+            echo "::group::alias $REGISTRY:$cli -> $target"
+            docker buildx imagetools create --tag "$REGISTRY:$cli" "$target"
+            echo "::endgroup::"
+
+            if [ "$cli" = "$newest_cli" ]; then
+              echo "::group::alias $REGISTRY:latest -> $target"
+              docker buildx imagetools create --tag "$REGISTRY:latest" "$target"
+              echo "::endgroup::"
+            fi
+          done < <(jq -r '.stellar_cli_versions[].version' builds.json)
+
+  complete:
+    if: always()
+    needs:
+      - matrix
+      - build
+      - manifest
+      - aliases
+    runs-on: ubuntu-24.04
+    steps:
+      - name: check upstream jobs
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
