@@ -49,14 +49,28 @@ main() {
 
   preflight_checks jq
 
-  # Aggregate all meta-*.json files under the metadata dir into one JSON array.
+  # Aggregate all meta-*.json files under the metadata dir, validating
+  # each one individually before merging. A mismatched or missing
+  # stellar_cli_version is a hard error — silently dropping would let a
+  # misconfigured run produce a release body with arches omitted.
+  local -a meta_files=()
+  while IFS= read -r -d '' f; do
+    meta_files+=("$f")
+  done < <(find "$metadata_dir" -type f -name 'meta-*.json' -print0)
+  test "${#meta_files[@]}" -gt 0 \
+    || die "no meta-*.json files under $metadata_dir"
+
+  local f entry_cli
+  for f in "${meta_files[@]}"; do
+    entry_cli="$(jq -r '.stellar_cli_version // empty' "$f")"
+    test -n "$entry_cli" \
+      || die "metadata file $f is missing the stellar_cli_version field"
+    test "$entry_cli" = "$cli" \
+      || die "metadata file $f has stellar_cli_version='$entry_cli', expected '$cli'"
+  done
+
   local rows
-  rows="$(find "$metadata_dir" -type f -name 'meta-*.json' -print0 \
-    | xargs -0 jq -s --arg cli "$cli" \
-        'map(select(.stellar_cli_version == $cli))
-         | sort_by(.rust_version, .arch)')"
-  test "$(jq 'length' <<<"$rows")" -gt 0 \
-    || die "no metadata files for stellar-cli $cli under $metadata_dir"
+  rows="$(jq -s 'sort_by(.rust_version, .arch)' "${meta_files[@]}")"
 
   emit_body "$cli" "$rows"
 }
