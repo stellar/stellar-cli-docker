@@ -84,9 +84,9 @@ pipx install).
 ## Releasing
 
 Maintainers: see [`RELEASE.md`](./RELEASE.md) for the end-to-end release
-process — how `builds.json` works, what the publish workflow does on a
-`v*` tag push, the tag-immutability guard, and how to verify a freshly
-published image.
+process — how `builds.json` works, the PR-driven release flow that fires
+the publish workflow when a GitHub Release is published, the tag-
+immutability guard, and how to verify a freshly published image.
 
 ## License
 
