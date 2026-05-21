@@ -16,72 +16,63 @@ The single source of truth for which `(cli, rust)` pairs we publish is [`builds.
 
 ## Releasing a new stellar-cli version
 
-1. **Add the entry to `builds.json`.**
+The release is a four-step flow, with PR review as the gate and a GitHub Release as the publish trigger. No manual tag pushes.
 
-   ```json
-   {
-     "default_rust": "1.94.0",
-     "ref": "",
-     "rust_versions": ["1.94.0"],
-     "version": "26.1.0"
-   }
-   ```
+1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0`). The workflow:
 
-   Leave `ref` empty; the next step fills it in. List in `rust_versions` every rust version you want to publish images for. `default_rust` must appear in `rust_versions` (validated by `scripts/validate-json.sh`).
+   - Resolves the upstream `stellar/stellar-cli` commit SHA for `v<version>`.
+   - Picks the last two minor stable rust versions, at their latest patch each, from `rust-lang/rust` GitHub releases. The newer one becomes `default_rust`.
+   - Updates `builds.json` with the new entry and any missing `rust_image_digests` keys (resolved via the same scripts you'd run locally).
+   - Validates the result.
+   - Pushes a `release/v<version>` branch and opens a PR with a body modeled on stellar-cli's release PRs — including a pre-filled link to create the GitHub Release on merge.
 
-   If you're introducing a rust version that doesn't already have an entry in `rust_image_digests`, add it with an empty value:
+2. **Review and adjust** the PR. The auto-pick of rust versions is a sensible default but not always right; if you want different `rust_versions` for this release, push commits to the `release/v<version>` branch before merging (re-run `./scripts/validate-json.sh` locally to confirm the result is still valid). The PR-time `lint` and `build` workflows re-do validation and smoke-build on every push.
 
-   ```json
-   "rust_image_digests": {
-     "1.94.0": ""
-   }
-   ```
+3. **Merge the PR** once approved. `builds.json` now declares the new release.
 
-2. **Resolve the upstream commit SHA and base image digest.**
+4. **Publish the release** by following the `Create release` link in the PR body. That opens `Releases → New release` with the tag pre-filled (`v<version>`); add notes (or use `Generate release notes`), then **Publish release**.
 
-   ```sh
-   ./scripts/refresh-stellar-cli-digests.sh
-   ./scripts/refresh-rust-digests.sh
-   ```
+   The `publish` workflow fires on the `release: published` event and:
 
-   Both scripts fill blank entries only. Already-pinned values are left alone (re-resolving a pinned value requires `--stellar-cli-version <v>` / `--rust-version <v>` respectively, and is a deliberate, infrequent maintenance task — see _Bumping a pinned base or ref_ below).
+   - Builds and pushes per-arch images for each declared `(cli, rust)` pair.
+   - Generates SLSA build provenance + SPDX SBOM attestations on each per-arch image (buildx-native + GitHub-native chains).
+   - Updates the GitHub Release: appends per-architecture digests and verification commands to the body (existing notes are preserved), attaches the SBOM and provenance files as downloadable assets.
 
-3. **Validate locally.**
+### Manual / local prepare
 
-   ```sh
-   ./scripts/validate-json.sh
-   ./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.94.0
-   docker run --rm stellar-cli:26.1.0-rust1.94.0 version --only-version
-   ./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.94.0 \
-     --stellar-cli-version 26.1.0 --rust-version 1.94.0
-   ./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.94.0
-   ```
+If you'd rather run the prepare step yourself (e.g. to debug an auto-pick that's failing), do it locally:
 
-   The smoke test confirms the binary reports the expected version and the labels are correct. The repro test confirms `stellar contract build --locked` produces byte-identical WASM across two clean builds.
+```sh
+./scripts/release-prepare.sh --stellar-cli-version 26.1.0
+# Optional: pin specific rust versions instead of the auto-pick
+./scripts/release-prepare.sh --stellar-cli-version 26.1.0 --rust-versions 1.93.0,1.94.0
+```
 
-4. **Open a PR with the `builds.json` change.** The `lint` and `build` workflows run on the PR and re-do steps 3 against the freshly-built image.
+Then commit and push the resulting `builds.json` change yourself, open the PR, and continue from step 3 above.
 
-5. **Tag the merge commit.** Once the PR lands on `main`:
+### Validating locally before pushing
 
-   ```sh
-   git checkout main && git pull
-   git tag -a v26.1.0 -m "Release 26.1.0"
-   git push origin v26.1.0
-   ```
+```sh
+./scripts/validate-json.sh
+./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0
+./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0 \
+  --stellar-cli-version 26.1.0 --rust-version 1.95.0
+./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0
+```
 
-   The `publish` workflow triggers automatically on the tag push.
+The smoke test confirms the binary reports the expected version and the labels are correct. The repro test confirms `stellar contract build --locked` produces byte-identical WASM across two clean builds. CI does the same against the freshly-built image on every PR push.
 
 ## What the publish workflow does
 
-Triggered by `v*` tag push, or manually via `workflow_dispatch` (which takes a `stellar_cli_version` input). Each run publishes **exactly one** cli version.
+Triggered by the `release: published` event (i.e. when a maintainer clicks **Publish release** in the GitHub UI for a `v<version>` tag), or manually via `workflow_dispatch` (which takes a `stellar_cli_version` input). Each run publishes **exactly one** cli version.
 
 | Job              | What it does                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `matrix`         | Validates `builds.json`, derives the cli version (from the tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust, arch)` rows for that one cli.                                                                                                                                                                               |
+| `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust, arch)` rows for that one cli.                                                                                                                                                                     |
 | `build` (matrix) | Native runner per arch (`ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64). Refuses to overwrite an existing per-arch tag. Builds + pushes the per-arch image via `docker/build-push-action` with `provenance: mode=max` and `sbom: true`. Then attests with `actions/attest-build-provenance` and `actions/attest-sbom`. Uploads SBOM + provenance bundle + metadata JSON as workflow artifacts. |
 | `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<rust>` per rust version, combining the already-pushed per-arch tags via `docker buildx imagetools create`. Refuses to overwrite an existing list.                                                                                                                                                                                                  |
 | `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default_rust)`. If this cli is the newest declared, also re-points `:latest`. Aliases are intentionally moving.                                                                                                                                                                                                                                      |
-| `release`        | Only on `v*` tag push. Downloads the per-arch artifacts uploaded by the build job, calls `scripts/release-body.sh` to compose the release body, creates / updates the GitHub Release with the SBOM and provenance files attached.                                                                                                                                                                      |
+| `release`        | Only on the `release: published` event (skipped on `workflow_dispatch`). Downloads the per-arch artifacts uploaded by the build job, calls `scripts/release-body.sh` to compose a structural body section, then **appends** that section to the existing release body and attaches the SBOM + provenance files. Any human-written notes already in the release body are preserved.                    |
 | `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
 
 ## Tag immutability and restarts
@@ -107,7 +98,7 @@ Both target-specific commands skip the blank-only check and re-resolve from upst
 
 ## Verifying a freshly published release
 
-After a `v*` tag publish succeeds, sanity-check the attestations:
+After a release publish succeeds, sanity-check the attestations:
 
 ```sh
 # Extract a per-arch digest:
