@@ -57,7 +57,12 @@ main() {
 
   test -n "$cli" || { err "--stellar-cli-version is required"; usage; exit 1; }
 
-  preflight_checks jq gh git
+  preflight_checks jq gh git sha256
+
+  # Snapshot of builds.json before any modifications, so we can detect
+  # whether the script actually changed anything (vs. a no-op refresh).
+  local before_hash
+  before_hash="$(sha256_of "$BUILDS_JSON_PATH")"
 
   # Detect mode: a fresh release of a new cli vs. a refresh of an existing
   # one. Both are legitimate paths through this script.
@@ -104,6 +109,17 @@ main() {
 
   log "validating builds.json ..."
   "$script_dir/validate-json.sh"
+
+  # If nothing actually changed in builds.json (compared to the snapshot
+  # we took at the top of main), there is nothing to release. Happens on a
+  # refresh run when the current latest rust versions and cli ref already
+  # match what's declared. Fail loudly so the workflow surfaces it
+  # cleanly instead of trying to push an empty commit.
+  local after_hash
+  after_hash="$(sha256_of "$BUILDS_JSON_PATH")"
+  if [ "$before_hash" = "$after_hash" ]; then
+    die "no changes to builds.json — nothing to release. The auto-picked rust versions and cli ref already match what's declared for stellar-cli $cli."
+  fi
 
   # Pick the GitHub Release tag this iteration will publish as.
   local release_tag
