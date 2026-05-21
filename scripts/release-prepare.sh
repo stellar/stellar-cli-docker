@@ -18,8 +18,11 @@ usage() {
 Usage: scripts/release-prepare.sh --stellar-cli-version <v> [--rust-versions <v1,v2,...>] [--help]
 
 Required:
-  --stellar-cli-version <v>   New stellar-cli release version, e.g. 26.1.0.
-                              Must not already be declared in builds.json.
+  --stellar-cli-version <v>   stellar-cli release version, e.g. 26.0.0.
+                              New = added as a fresh entry; existing in
+                              builds.json = refreshed (rust pairings
+                              replaced) and a new GitHub Release iteration
+                              tag is chosen.
 
 Options:
   --rust-versions <list>      Comma-separated rust versions to pair with.
@@ -29,9 +32,14 @@ Options:
                               The last entry in the list becomes default_rust.
   --help                      Show this message.
 
-Adds the new cli entry to builds.json (with empty ref + any missing rust
-digest entries), then runs refresh-stellar-cli-digests.sh and
-refresh-rust-digests.sh to fill the blanks, then validate-json.sh.
+Stages builds.json (new entry or refresh), resolves cli ref + rust image
+digests, validates the result, then prints the chosen GitHub Release tag
+as the final stdout line:
+
+  - v<cli>       if no release exists for this cli yet
+  - v<cli>-1     if v<cli> exists; -2 if v<cli>-1 exists; etc.
+
+All log output goes to stderr; stdout is just the tag.
 EOF
 }
 
@@ -51,15 +59,21 @@ main() {
 
   preflight_checks jq gh git
 
-  # Reject duplicate cli versions — re-publishing an existing one needs a
-  # different code path (see RELEASE.md), not a fresh prepare.
-  local existing
+  # Detect mode: a fresh release of a new cli vs. a refresh of an existing
+  # one. Both are legitimate paths through this script.
+  local mode existing
   existing="$(builds_json --arg v "$cli" \
     '.stellar_cli_versions[] | select(.version == $v) | .version' | head -n1)"
-  test -z "$existing" \
-    || die "stellar-cli $cli is already declared in builds.json"
+  if [ -z "$existing" ]; then
+    mode=new
+  else
+    mode=refresh
+  fi
+  log "mode: $mode"
 
-  # Resolve rust versions (auto-pick or override).
+  # Always the latest two minor stable rust versions, at their latest patch
+  # each. Maintainers who need different pairings can edit builds.json on
+  # the release branch before merging.
   local -a rusts=()
   if [ -n "$rust_versions_csv" ]; then
     IFS=',' read -ra rusts <<<"$rust_versions_csv"
@@ -72,13 +86,15 @@ main() {
     log "rust versions (auto): ${rusts[*]}"
   fi
   test "${#rusts[@]}" -gt 0 || die "no rust versions selected"
-
-  # The last entry is newest → default_rust.
   local default_rust="${rusts[-1]}"
-
   log "default_rust: $default_rust"
+
   log "applying changes to $BUILDS_JSON_PATH ..."
-  update_builds_json "$cli" "$default_rust" "${rusts[@]}"
+  if [ "$mode" = new ]; then
+    add_cli_entry "$cli" "$default_rust" "${rusts[@]}"
+  else
+    replace_cli_entry "$cli" "$default_rust" "${rusts[@]}"
+  fi
 
   log "resolving upstream stellar-cli ref ..."
   "$script_dir/refresh-stellar-cli-digests.sh"
@@ -89,8 +105,17 @@ main() {
   log "validating builds.json ..."
   "$script_dir/validate-json.sh"
 
+  # Pick the GitHub Release tag this iteration will publish as.
+  local release_tag
+  release_tag="$(pick_release_tag "$cli")"
+  log "release tag: $release_tag"
+
   log ""
   log "release-prepare: builds.json staged for stellar-cli $cli with rust ${rusts[*]}"
+
+  # Final stdout line is the chosen release tag, for workflows that need
+  # to capture it.
+  printf '%s\n' "$release_tag"
 }
 
 # Picks the last two unique minor stable rust versions, at their latest
@@ -114,45 +139,104 @@ pick_default_rust_versions() {
   ' <<<"$versions"
 }
 
-# Adds the new stellar_cli_versions entry (with empty ref) and stubs any
-# missing rust_image_digests keys with empty strings. The subsequent
-# refresh-*.sh runs fill the blanks; refresh ignores already-pinned values
-# so existing entries are untouched.
-update_builds_json() {
+# Appends a fresh stellar_cli_versions entry (with empty ref). Used for
+# new-cli releases.
+add_cli_entry() {
   local cli="$1" default_rust="$2"
   shift 2
   local -a rust_versions=("$@")
 
-  local rust_array
-  rust_array="$(printf '%s\n' "${rust_versions[@]}" | jq -R . | jq -s 'sort')"
-
-  local cli_entry
-  cli_entry="$(jq -n \
-    --arg default_rust "$default_rust" \
-    --argjson rust_versions "$rust_array" \
-    --arg version "$cli" \
-    '{
-      default_rust: $default_rust,
-      ref: "",
-      rust_versions: $rust_versions,
-      version: $version
-    }')"
-
-  local digest_stubs
-  digest_stubs="$(printf '%s\n' "${rust_versions[@]}" \
-    | jq -R . | jq -s 'map({(.): ""}) | add')"
+  local cli_entry stubs
+  cli_entry="$(make_cli_entry "$cli" "$default_rust" "" "${rust_versions[@]}")"
+  stubs="$(make_digest_stubs "${rust_versions[@]}")"
 
   local tmp
   tmp="$(mktemp)"
   jq --sort-keys \
     --argjson entry "$cli_entry" \
-    --argjson stubs "$digest_stubs" \
+    --argjson stubs "$stubs" \
     '
       .stellar_cli_versions += [$entry]
       | .rust_image_digests = ($stubs + .rust_image_digests)
     ' \
     "$BUILDS_JSON_PATH" > "$tmp"
   mv "$tmp" "$BUILDS_JSON_PATH"
+}
+
+# Replaces an existing stellar_cli_versions entry's rust_versions and
+# default_rust (and clears ref so refresh-stellar-cli-digests.sh re-resolves
+# it — keeps the workflow idempotent even if the upstream SHA somehow moved).
+# Used for refresh runs.
+replace_cli_entry() {
+  local cli="$1" default_rust="$2"
+  shift 2
+  local -a rust_versions=("$@")
+
+  local cli_entry stubs
+  cli_entry="$(make_cli_entry "$cli" "$default_rust" "" "${rust_versions[@]}")"
+  stubs="$(make_digest_stubs "${rust_versions[@]}")"
+
+  local tmp
+  tmp="$(mktemp)"
+  jq --sort-keys \
+    --arg cli "$cli" \
+    --argjson entry "$cli_entry" \
+    --argjson stubs "$stubs" \
+    '
+      .stellar_cli_versions |= map(if .version == $cli then $entry else . end)
+      | .rust_image_digests = ($stubs + .rust_image_digests)
+    ' \
+    "$BUILDS_JSON_PATH" > "$tmp"
+  mv "$tmp" "$BUILDS_JSON_PATH"
+}
+
+# Builds a single stellar_cli_versions entry as JSON.
+make_cli_entry() {
+  local cli="$1" default_rust="$2" ref="$3"
+  shift 3
+  local -a rust_versions=("$@")
+
+  local rust_array
+  rust_array="$(printf '%s\n' "${rust_versions[@]}" | jq -R . | jq -s 'sort')"
+
+  jq -n \
+    --arg default_rust "$default_rust" \
+    --argjson rust_versions "$rust_array" \
+    --arg ref "$ref" \
+    --arg version "$cli" \
+    '{default_rust: $default_rust, ref: $ref, rust_versions: $rust_versions, version: $version}'
+}
+
+# Builds a JSON object stubbing each rust version to "". Merged INTO
+# rust_image_digests with stubs first, so existing pinned values override
+# the stub and only blank slots get filled by the subsequent refresh.
+make_digest_stubs() {
+  printf '%s\n' "$@" | jq -R . | jq -s 'map({(.): ""}) | add'
+}
+
+# Picks the next available GitHub Release tag for this cli version.
+# Returns v<cli> if no release exists yet, otherwise v<cli>-<N> where N is
+# one more than the highest existing iteration.
+pick_release_tag() {
+  local cli="$1"
+  local cli_pat
+  cli_pat="$(printf '%s' "$cli" | sed 's/\./\\./g')"
+
+  local existing_tags
+  existing_tags="$(gh release list --limit 200 --json tagName --jq '.[].tagName' 2>/dev/null || true)"
+
+  if ! grep -qE "^v${cli_pat}\$" <<<"$existing_tags"; then
+    printf 'v%s\n' "$cli"
+    return
+  fi
+
+  local max_iter
+  max_iter="$(grep -E "^v${cli_pat}-[0-9]+\$" <<<"$existing_tags" \
+    | sed -E "s/^v${cli_pat}-//" \
+    | sort -n \
+    | tail -n1)"
+
+  printf 'v%s-%d\n' "$cli" "$(( ${max_iter:-0} + 1 ))"
 }
 
 main "$@"
