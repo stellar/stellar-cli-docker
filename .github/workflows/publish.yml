@@ -144,7 +144,10 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: false
+          # Also push the signed Sigstore attestation alongside the image
+          # in the registry, so consumers can verify with cosign without
+          # needing the gh CLI or access to the GitHub attestations API.
+          push-to-registry: true
 
       - name: attest SBOM
         id: attest-sbom
@@ -154,7 +157,7 @@ jobs:
           subject-name: ${{ env.REGISTRY }}
           subject-digest: ${{ steps.build.outputs.digest }}
           sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.spdx.json
-          push-to-registry: false
+          push-to-registry: true
 
       - name: write per-arch metadata
         if: steps.skip.outputs.skipped != 'true'
