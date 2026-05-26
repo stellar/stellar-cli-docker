@@ -1,0 +1,9 @@
+---
+ignored:
+  # Pinning apt package versions is deliberately out of scope. The runtime
+  # base is rust:<v>-slim-bookworm, which ships security updates for Debian
+  # packages; pinning would (a) break the moment a package is superseded by
+  # a security patch (Debian removes the old version) and (b) fail to
+  # deliver bit-reproducibility on its own. Provenance + SBOM (per SEP-58)
+  # is the trust anchor here, not apt-level pinning.
+  - DL3008
