@@ -100,40 +100,59 @@ emit_body() {
   printf '\n## Per-architecture digests (for SEP-58 `bldimg`)\n\n'
   printf 'Use the per-architecture digest when recording `bldimg` in your contract metadata. Never use a moving tag like `:latest` or `:%s`.\n\n' "$cli"
 
+  local rust_rows
   while IFS= read -r rust; do
     printf '### Rust %s\n\n' "$rust"
+    rust_rows="$(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")"
+
     while IFS= read -r row; do
       printf -- '- `%s@%s`\n' \
         "$(jq -r '.image' <<<"$row")" \
         "$(jq -r '.digest' <<<"$row")"
-    done < <(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")
+    done <<<"$rust_rows"
+
     printf '\nVerify:\n\n```sh\n'
+
+    # gh attestation verify — verifies all attestation chains attached
+    # to the image (SLSA provenance + SPDX SBOM in our case).
     while IFS= read -r row; do
       printf 'gh attestation verify oci://%s@%s --repo %s\n' \
         "$(jq -r '.image' <<<"$row")" \
         "$(jq -r '.digest' <<<"$row")" \
         "$repo"
-    done < <(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")
+    done <<<"$rust_rows"
+
+    # cosign verify-attestation — registry-attached SLSA provenance.
+    # Pass `--type spdxjson` to verify the SBOM instead.
+    printf '\n'
+    while IFS= read -r row; do
+      printf 'cosign verify-attestation --type slsaprovenance %s@%s\n' \
+        "$(jq -r '.image' <<<"$row")" \
+        "$(jq -r '.digest' <<<"$row")"
+    done <<<"$rust_rows"
+
+    # docker buildx imagetools inspect — manifest + attached attestation
+    # metadata (no signature verification, just inspection).
+    printf '\n'
+    while IFS= read -r row; do
+      printf 'docker buildx imagetools inspect %s@%s\n' \
+        "$(jq -r '.image' <<<"$row")" \
+        "$(jq -r '.digest' <<<"$row")"
+    done <<<"$rust_rows"
+
     printf '```\n\n'
   done < <(jq -r '. | map(.rust_version) | unique | .[]' <<<"$rows")
 
   cat <<'EOF'
 ## Verification
 
-Each per-architecture image carries two independent attestation chains (SLSA build provenance + SPDX SBOM). The runnable `gh attestation verify` commands are listed above under each Rust subsection. The chains share the same OIDC trust root; alternative verifier paths are below.
+Each per-architecture image carries two independent attestation chains (SLSA build provenance + SPDX SBOM), signed by this repo's GitHub Actions OIDC identity. The per-Rust `Verify:` blocks above list runnable commands for each image across three tools (`gh attestation verify`, `cosign verify-attestation`, and `docker buildx imagetools inspect`).
 
-### Local wrapper (both chains in one call)
+A one-call wrapper that runs both predicate checks via `gh` and reports per-chain is included in the repo:
 
 EOF
   printf '```sh\n./scripts/verify-image.sh --image <image>@<digest> --repo %s\n```\n\n' "$repo"
   cat <<'EOF'
-### Registry-attached (cosign / docker buildx)
-
-```sh
-cosign verify-attestation --type slsaprovenance <image>@<digest>
-docker buildx imagetools inspect <image>@<digest>
-```
-
 ## Assets
 
 This release attaches one SBOM file (`.spdx.json`) and one provenance bundle (`.intoto.jsonl`) per per-architecture image.
