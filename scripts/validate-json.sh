@@ -108,7 +108,12 @@ print_sort_diff() {
 }
 
 check_schema() {
-  if check-jsonschema --schemafile "$BUILDS_SCHEMA_PATH" "$BUILDS_JSON_PATH"; then
+  # check-jsonschema prints "ok -- validation done" to stdout on success.
+  # validate-json.sh is purely a checker — its only result is an exit code,
+  # so all human-facing output goes to stderr. Otherwise the "ok" line
+  # leaks into command substitution of any caller that runs us in a chain
+  # (e.g. release-prepare.sh, whose stdout must be just the release tag).
+  if check-jsonschema --schemafile "$BUILDS_SCHEMA_PATH" "$BUILDS_JSON_PATH" >&2; then
     return 0
   else
     err "builds.json failed JSON Schema validation"
