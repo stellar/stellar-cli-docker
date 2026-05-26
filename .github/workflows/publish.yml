@@ -120,7 +120,7 @@ jobs:
           build-args: |
             RUST_VERSION=${{ matrix.rust_version }}
             RUST_IMAGE_DIGEST=${{ matrix.rust_image_digest }}
-            STELLAR_CLI_REF=${{ matrix.stellar_cli_ref }}
+            STELLAR_CLI_REV=${{ matrix.stellar_cli_ref }}
             STELLAR_CLI_VERSION=${{ matrix.stellar_cli_version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
             BUILDS_JSON_SHA=${{ steps.meta.outputs.builds_json_sha }}
