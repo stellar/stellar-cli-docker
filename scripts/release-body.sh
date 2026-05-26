@@ -107,24 +107,22 @@ emit_body() {
         "$(jq -r '.image' <<<"$row")" \
         "$(jq -r '.digest' <<<"$row")"
     done < <(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")
-    printf '\n'
+    printf '\nVerify:\n\n```sh\n'
+    while IFS= read -r row; do
+      printf 'gh attestation verify oci://%s@%s --repo %s\n' \
+        "$(jq -r '.image' <<<"$row")" \
+        "$(jq -r '.digest' <<<"$row")" \
+        "$repo"
+    done < <(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")
+    printf '```\n\n'
   done < <(jq -r '. | map(.rust_version) | unique | .[]' <<<"$rows")
 
   cat <<'EOF'
 ## Verification
 
-Each per-architecture image carries two independent attestation chains.
+Each per-architecture image carries two independent attestation chains (SLSA build provenance + SPDX SBOM). The runnable `gh attestation verify` commands are listed above under each Rust subsection. The chains share the same OIDC trust root; alternative verifier paths are below.
 
-### GitHub-native (recommended)
-
-```sh
-gh attestation verify oci://<image>@<digest> \
-EOF
-  printf '  --repo %s\n' "$repo"
-  cat <<'EOF'
-```
-
-The repo includes `scripts/verify-image.sh` that wraps this for both provenance and SBOM:
+### Local wrapper (both chains in one call)
 
 EOF
   printf '```sh\n./scripts/verify-image.sh --image <image>@<digest> --repo %s\n```\n\n' "$repo"
