@@ -122,11 +122,18 @@ emit_body() {
         "$repo"
     done <<<"$rust_rows"
 
-    # cosign verify-attestation — registry-attached SLSA provenance.
-    # Pass `--type spdxjson` to verify the SBOM instead.
+    # cosign verify-attestation — registry-attached SLSA provenance. The
+    # certificate flags anchor trust to this repo's GitHub Actions OIDC
+    # identity (the workflow that ran actions/attest-build-provenance);
+    # without them cosign accepts any valid Sigstore signature, which is
+    # not what we want. Pass `--type spdxjson` to verify the SBOM instead.
     printf '\n'
     while IFS= read -r row; do
-      printf 'cosign verify-attestation --type slsaprovenance %s@%s\n' \
+      printf 'cosign verify-attestation \\\n'
+      printf '  --type slsaprovenance \\\n'
+      printf '  --certificate-identity-regexp "https://github.com/%s/\\.github/workflows/.*" \\\n' "$repo"
+      printf '  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n'
+      printf '  %s@%s\n' \
         "$(jq -r '.image' <<<"$row")" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
@@ -146,13 +153,12 @@ emit_body() {
   cat <<'EOF'
 ## Verification
 
-Each per-architecture image carries two independent attestation chains (SLSA build provenance + SPDX SBOM), signed by this repo's GitHub Actions OIDC identity. The per-Rust `Verify:` blocks above list runnable commands for each image across three tools (`gh attestation verify`, `cosign verify-attestation`, and `docker buildx imagetools inspect`).
+Each per-architecture image carries two independent attestation chains — SLSA build provenance and SPDX SBOM — signed by this repo's GitHub Actions OIDC identity. The per-Rust `Verify:` blocks above are copy-paste-runnable for every published image across three tools:
 
-A one-call wrapper that runs both predicate checks via `gh` and reports per-chain is included in the repo:
+- `gh attestation verify` — checks every attestation chain in one call (recommended).
+- `cosign verify-attestation` — registry-attached verification with explicit certificate identity + OIDC issuer flags so trust is anchored to this repo's workflows, not just "any valid Sigstore signature".
+- `docker buildx imagetools inspect` — manifest + attached attestation metadata, useful for inspection (not signature verification).
 
-EOF
-  printf '```sh\n./scripts/verify-image.sh --image <image>@<digest> --repo %s\n```\n\n' "$repo"
-  cat <<'EOF'
 ## Assets
 
 This release attaches one SBOM file (`.spdx.json`) and one provenance bundle (`.intoto.jsonl`) per per-architecture image.
