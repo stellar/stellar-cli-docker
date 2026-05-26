@@ -15,8 +15,9 @@ usage() {
 Usage: scripts/newest-pair.sh (--stellar-cli-version | --rust-version) [--help]
 
 Prints exactly one field of the newest stellar_cli_versions[] entry in
-builds.json. The newest entry is the last one in the array; entries are
-expected to be appended in release order.
+builds.json. The newest entry is the one whose .version sorts highest by
+semver (numeric MAJOR.MINOR.PATCH comparison); array order is ignored so a
+backported entry added out of order cannot displace a higher-semver release.
 
 Options:
   --stellar-cli-version   Print the cli version (e.g. 26.0.0).
@@ -43,7 +44,15 @@ main() {
 
   preflight_checks jq
 
-  builds_json --arg f "$field" '.stellar_cli_versions[-1][$f]'
+  # Sort numerically by [MAJOR, MINOR, PATCH] so 1.100.0 ranks above
+  # 1.99.0 (default jq sort on strings is lexicographic and would invert
+  # that), and so an entry added out of order — backport, manual edit —
+  # cannot displace a higher-semver release.
+  builds_json --arg f "$field" '
+    .stellar_cli_versions
+    | sort_by(.version | split(".") | map(tonumber))
+    | .[-1][$f]
+  '
 }
 
 main "$@"
