@@ -122,15 +122,15 @@ emit_body() {
         "$repo"
     done <<<"$rust_rows"
 
-    # cosign verify-attestation — registry-attached SLSA provenance. The
-    # certificate flags anchor trust to this repo's GitHub Actions OIDC
-    # identity (the workflow that ran actions/attest-build-provenance);
+    # cosign verify-attestation — registry-attached SLSA v1.0 provenance.
+    # The certificate flags anchor trust to this repo's GitHub Actions
+    # OIDC identity (the workflow that ran actions/attest-build-provenance);
     # without them cosign accepts any valid Sigstore signature, which is
     # not what we want. Pass `--type spdxjson` to verify the SBOM instead.
     printf '\n'
     while IFS= read -r row; do
       printf 'cosign verify-attestation \\\n'
-      printf '  --type slsaprovenance \\\n'
+      printf '  --type slsaprovenance1 \\\n'
       printf '  --certificate-identity-regexp "https://github.com/%s/\\.github/workflows/.*" \\\n' "$repo"
       printf '  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n'
       printf '  %s@%s\n' \
