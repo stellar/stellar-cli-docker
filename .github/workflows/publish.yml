@@ -7,9 +7,10 @@ on:
       - published
 
 permissions:
-  contents: write       # release job creates/updates the GitHub Release
-  attestations: write   # actions/attest-* publish to the repo's attestation store
-  id-token: write       # OIDC token used by buildx provenance and the attest actions
+  contents: write           # release job creates/updates the GitHub Release
+  attestations: write       # actions/attest-build-provenance + actions/attest publish to the repo's attestation store
+  id-token: write           # OIDC token used by buildx provenance and the attest actions
+  artifact-metadata: write  # actions/attest creates an artifact storage record
 
 env:
   # Override per-repo via Settings → Variables → Actions (vars.REGISTRY).
@@ -148,7 +149,7 @@ jobs:
       - name: attest SBOM
         id: attest-sbom
         if: steps.skip.outputs.skipped != 'true'
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}
           subject-digest: ${{ steps.build.outputs.digest }}
