@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.10
 
-# Trusted, reproducible stellar-cli image. See SEP-58 for the full contract:
+# Reproducible stellar-cli image. See SEP-58 for the full contract:
 # https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0058.md
 #
 # Every input is pinned. The Debian base via the official Rust image's
@@ -80,7 +80,7 @@ ENTRYPOINT ["stellar"]
 CMD []
 
 LABEL org.opencontainers.image.title="stellar-cli" \
-      org.opencontainers.image.description="Trusted, SEP-58-compatible build image for Stellar smart contracts." \
+      org.opencontainers.image.description="SEP-58-compatible build image for Stellar smart contracts." \
       org.opencontainers.image.source="https://github.com/stellar/stellar-cli-docker" \
       org.opencontainers.image.url="https://github.com/stellar/stellar-cli-docker" \
       org.opencontainers.image.documentation="https://github.com/stellar/stellar-cli-docker" \

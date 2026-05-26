@@ -1,6 +1,6 @@
 # stellar-cli-docker
 
-Trusted Docker images for the [Stellar CLI](https://github.com/stellar/stellar-cli),
+Docker images for the [Stellar CLI](https://github.com/stellar/stellar-cli),
 intended as a [SEP-58](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0058.md)
 compatible build image so contract publishers can record `bldimg` digests
 that verifiers can reproduce byte-for-byte.
