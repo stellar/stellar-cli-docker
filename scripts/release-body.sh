@@ -88,7 +88,7 @@ emit_body() {
 
   printf '# stellar-cli %s\n\n' "$cli"
 
-  printf 'Trusted, SEP-58-compatible build images for the Stellar CLI.\n\n'
+  printf 'Stellar CLI image (SEP-58-compatible image for Stellar smart contracts).\n\n'
 
   printf '## Convenience tags\n\n'
   printf -- '- `%s:%s` — multi-arch, default Rust for this release\n' "$registry" "$cli"
