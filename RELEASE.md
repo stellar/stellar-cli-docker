@@ -14,6 +14,41 @@ Each release publishes to `docker.io/stellar/stellar-cli`:
 
 The single source of truth for which `(cli, rust)` pairs we publish is [`builds.json`](./builds.json). Releases happen one stellar-cli version per workflow run.
 
+## Repository setup
+
+The workflows expect the following GitHub repository configuration. Settings live under **Settings → Secrets and variables → Actions** on the repo.
+
+### Required secrets
+
+| Secret | Used by | Purpose |
+| --- | --- | --- |
+| `DOCKERHUB_USERNAME` | `publish.yml` | Username for the `docker/login-action` that authenticates pushes to Docker Hub. |
+| `DOCKERHUB_TOKEN` | `publish.yml` | Access token for the same Docker Hub login. Use a scoped access token, not the account password. |
+
+### Optional variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `REGISTRY` | `docker.io/stellar/stellar-cli` | Registry path to push images to. Override on a fork to publish to a personal registry for testing (e.g. `docker.io/<user>/stellar-cli-experimental`). Threaded through `publish.yml`'s build/manifest/aliases jobs and into `scripts/release-body.sh` so the rendered release body matches whatever registry was published to. |
+
+### Required workflow permissions
+
+These are set in the workflow YAML, not in repo settings — but worth knowing what each is for if you're reviewing or hardening:
+
+- `contents: write` (`publish.yml`, `release.yml`) — `publish.yml`'s release job updates the GitHub Release; `release.yml` pushes the release branch.
+- `attestations: write` (`publish.yml`) — `actions/attest-build-provenance` and `actions/attest-sbom` publish to the repo's attestation store.
+- `id-token: write` (`publish.yml`) — OIDC token used by buildx provenance and the attest actions for keyless Sigstore signing.
+- `pull-requests: write` (`release.yml`) — `gh pr create` opens the release PR.
+
+### Branch protection
+
+The `complete` job in each workflow (`lint.yml`, `build.yml`, `publish.yml`, `release.yml`) is a single aggregator status check. Configure branch protection on `main` to require these checks before merging:
+
+- `lint / complete`
+- `build / complete`
+
+The `publish` and `release` workflows fire on release events / dispatch and don't gate merges to `main`.
+
 ## Release tag scheme
 
 Every release gets a unique tag. Tags are never reused or updated in place.
