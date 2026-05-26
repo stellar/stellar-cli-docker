@@ -19,6 +19,7 @@ ARG BUILDS_JSON_SHA
 FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST} AS builder
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 ENV CARGO_HOME=/usr/local/cargo \
     DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
@@ -46,6 +47,7 @@ RUN installed_version="$(/out/bin/stellar version --only-version)" \
      || { echo "stellar-cli mismatch: binary reports version='$installed_version' rev='$installed_rev', expected version='${STELLAR_CLI_VERSION}' rev='${STELLAR_CLI_REV}'" >&2; exit 1; }
 
 FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST}
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 ARG RUST_VERSION
 ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
