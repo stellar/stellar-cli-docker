@@ -80,7 +80,7 @@ ENTRYPOINT ["stellar"]
 CMD []
 
 LABEL org.opencontainers.image.title="stellar-cli" \
-      org.opencontainers.image.description="SEP-58-compatible build image for Stellar smart contracts." \
+      org.opencontainers.image.description="Stellar CLI image (SEP-58-compatible image for Stellar smart contracts)." \
       org.opencontainers.image.source="https://github.com/stellar/stellar-cli-docker" \
       org.opencontainers.image.url="https://github.com/stellar/stellar-cli-docker" \
       org.opencontainers.image.documentation="https://github.com/stellar/stellar-cli-docker" \
