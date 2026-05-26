@@ -18,7 +18,10 @@ permissions:
   id-token: write       # OIDC token used by buildx provenance and the attest actions
 
 env:
-  REGISTRY: docker.io/stellar/stellar-cli
+  # Override per-repo via Settings → Variables → Actions (vars.REGISTRY).
+  # Useful for forks that want to publish to a personal registry for
+  # testing without forking the workflow itself.
+  REGISTRY: ${{ vars.REGISTRY || 'docker.io/stellar/stellar-cli' }}
 
 jobs:
   matrix:
@@ -328,6 +331,7 @@ jobs:
           ./scripts/release-body.sh \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --metadata-dir release-artifacts \
+            --registry "$REGISTRY" \
             > release-body.md
       - name: update the github release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0

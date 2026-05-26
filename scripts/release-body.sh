@@ -17,7 +17,7 @@ source "$script_dir/lib/common.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/release-body.sh --stellar-cli-version <v> --metadata-dir <path> [--help]
+Usage: scripts/release-body.sh --stellar-cli-version <v> --metadata-dir <path> [--registry <ref>] [--help]
 
 Required:
   --stellar-cli-version <v>   The release this body is for (e.g. 26.0.0).
@@ -25,6 +25,8 @@ Required:
   --metadata-dir <path>       Directory containing meta-*.json files.
 
 Options:
+  --registry <ref>            Registry path used in the rendered convenience-
+                              tag lines. Default: docker.io/stellar/stellar-cli.
   --help                      Show this message.
 
 Prints the release body markdown to stdout.
@@ -32,12 +34,13 @@ EOF
 }
 
 main() {
-  local cli="" metadata_dir=""
+  local cli="" metadata_dir="" registry="docker.io/stellar/stellar-cli"
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
       --metadata-dir)        require_value "$1" "${2:-}"; metadata_dir="$2"; shift 2;;
+      --registry)            require_value "$1" "${2:-}"; registry="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -72,21 +75,21 @@ main() {
   local rows
   rows="$(jq -s 'sort_by(.rust_version, .arch)' "${meta_files[@]}")"
 
-  emit_body "$cli" "$rows"
+  emit_body "$cli" "$rows" "$registry"
 }
 
 emit_body() {
-  local cli="$1" rows="$2"
+  local cli="$1" rows="$2" registry="$3"
 
   printf '# stellar-cli %s\n\n' "$cli"
 
   printf 'Trusted, SEP-58-compatible build images for the Stellar CLI.\n\n'
 
   printf '## Convenience tags\n\n'
-  printf -- '- `docker.io/stellar/stellar-cli:%s` — multi-arch, default Rust for this release\n' "$cli"
+  printf -- '- `%s:%s` — multi-arch, default Rust for this release\n' "$registry" "$cli"
   local rust
   while IFS= read -r rust; do
-    printf -- '- `docker.io/stellar/stellar-cli:%s-rust%s` — multi-arch\n' "$cli" "$rust"
+    printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$rust"
   done < <(jq -r '. | map(.rust_version) | unique | .[]' <<<"$rows")
 
   printf '\n## Per-architecture digests (for SEP-58 `bldimg`)\n\n'
