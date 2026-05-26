@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-script_dir="$(CDPATH= builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"
 
@@ -88,6 +88,7 @@ main() {
       --format '{{.Manifest.Digest}}')"
     test -n "$new_digest" || die "empty digest returned for rust:${v}-slim-bookworm"
     log "  -> $new_digest"
+    # shellcheck disable=SC2034  # `updates` is consumed by apply_updates via `local -n`
     updates["$v"]="$new_digest"
   done <<<"$versions"
 

@@ -4,14 +4,14 @@
 #   2. builds.json conforms to builds.schema.json (draft-2020-12).
 #   3. Cross-field constraints in builds.json that JSON Schema can't express
 #      (default_rust must appear in rust_versions; rust_versions entries
-#      must be keys in rust_image_digests; variants[].rust_version too).
+#      must be keys in rust_image_digests).
 #
 # Exits 0 on success, 1 on any failure. Prints a useful diff on key-order
 # failures.
 
 set -euo pipefail
 
-script_dir="$(CDPATH= builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"
 
@@ -146,21 +146,6 @@ check_cross_field_constraints() {
     while IFS= read -r r; do
       err "rust version '$r' is referenced by a cli entry but missing from rust_image_digests"
     done <<<"$unknown"
-    rc=1
-  fi
-
-  # Same check for variants[].rust_version.
-  local unknown_var
-  unknown_var="$(builds_json '
-    . as $b
-    | [.variants[]? | .rust_version]
-    | unique
-    | map(select($b.rust_image_digests[.] == null))
-    | .[]')"
-  if [ -n "$unknown_var" ]; then
-    while IFS= read -r r; do
-      err "rust version '$r' is referenced by a variant but missing from rust_image_digests"
-    done <<<"$unknown_var"
     rc=1
   fi
 

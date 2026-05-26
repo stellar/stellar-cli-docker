@@ -1,0 +1,14 @@
+# Follow `source` directives so SC1091 doesn't fire on every lib/common.sh.
+external-sources=true
+
+# Resolve `# shellcheck source=...` paths relative to the script being
+# checked, so `source=lib/common.sh` works from any script under scripts/
+# regardless of the working directory shellcheck is invoked from.
+source-path=SCRIPTDIR
+
+# SC2016 fires whenever a single-quoted string contains `$something`, but
+# we use single-quoted jq expressions like '.foo[$v]' all over the place
+# where `$v` is a jq variable (passed via `--arg v ...`), not a bash one.
+# Disabling globally; if a real bash escape mistake creeps in, code review
+# is the safety net.
+disable=SC2016
