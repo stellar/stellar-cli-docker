@@ -10,14 +10,14 @@
 
 ARG RUST_VERSION
 ARG RUST_IMAGE_DIGEST
-ARG STELLAR_CLI_REF
+ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG VARIANT=standard
 ARG BUILD_DATE
 ARG BUILDS_JSON_SHA
 
 FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST} AS builder
-ARG STELLAR_CLI_REF
+ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ENV CARGO_HOME=/usr/local/cargo \
     DEBIAN_FRONTEND=noninteractive
@@ -33,7 +33,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN cargo install --locked --root /out \
         --git https://github.com/stellar/stellar-cli.git \
-        --rev "${STELLAR_CLI_REF}" \
+        --rev "${STELLAR_CLI_REV}" \
         stellar-cli
 
 # Fail the build loudly if the binary's reported version disagrees with the
@@ -46,7 +46,7 @@ RUN installed="$(/out/bin/stellar version --only-version)" \
 FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST}
 ARG RUST_VERSION
 ARG RUST_IMAGE_DIGEST
-ARG STELLAR_CLI_REF
+ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG VARIANT
 ARG BUILD_DATE
@@ -87,13 +87,13 @@ LABEL org.opencontainers.image.title="stellar-cli" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.vendor="Stellar Development Foundation" \
       org.opencontainers.image.version="${STELLAR_CLI_VERSION}" \
-      org.opencontainers.image.revision="${STELLAR_CLI_REF}" \
+      org.opencontainers.image.revision="${STELLAR_CLI_REV}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.base.name="docker.io/library/rust:${RUST_VERSION}-slim-bookworm" \
       org.opencontainers.image.base.digest="${RUST_IMAGE_DIGEST}" \
       org.stellar.rust-version="${RUST_VERSION}" \
       org.stellar.rust-image-digest="${RUST_IMAGE_DIGEST}" \
-      org.stellar.stellar-cli-ref="${STELLAR_CLI_REF}" \
+      org.stellar.stellar-cli-ref="${STELLAR_CLI_REV}" \
       org.stellar.stellar-cli-version="${STELLAR_CLI_VERSION}" \
       org.stellar.wasm-target="wasm32v1-none" \
       org.stellar.variant="${VARIANT}" \

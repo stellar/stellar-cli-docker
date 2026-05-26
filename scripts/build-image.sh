@@ -80,7 +80,7 @@ main() {
     --load \
     --build-arg "RUST_VERSION=$rust" \
     --build-arg "RUST_IMAGE_DIGEST=$rust_digest" \
-    --build-arg "STELLAR_CLI_REF=$stellar_ref" \
+    --build-arg "STELLAR_CLI_REV=$stellar_ref" \
     --build-arg "STELLAR_CLI_VERSION=$cli" \
     --build-arg "VARIANT=$variant" \
     --build-arg "BUILD_DATE=$build_date" \
