@@ -68,7 +68,7 @@ jobs:
           fi
 
           gh pr create \
-            --base main \
+            --base "${{ github.event.repository.default_branch }}" \
             --head "release/${RELEASE_TAG}" \
             --title "$title" \
             --body "$(cat <<EOF
@@ -88,7 +88,7 @@ jobs:
 
           When this PR is reviewed and merged, create a GitHub Release by going to:
 
-          https://github.com/${REPO}/releases/new?tag=${RELEASE_TAG}&title=${RELEASE_TAG#v}&target=main
+          https://github.com/${REPO}/releases/new?tag=${RELEASE_TAG}&title=${RELEASE_TAG#v}&target=${{ github.event.repository.default_branch }}
 
           The publish workflow fires on the release-published event and:
           - Builds and pushes per-arch images for any new (cli, rust) pairs; existing pairs are skipped with a warning (per-arch tags are immutable)
