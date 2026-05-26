@@ -124,6 +124,7 @@ jobs:
             STELLAR_CLI_VERSION=${{ matrix.stellar_cli_version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
             BUILDS_JSON_SHA=${{ steps.meta.outputs.builds_json_sha }}
+            SOURCE_REPO=${{ github.repository }}
 
       - name: generate SBOM file
         if: steps.skip.outputs.skipped != 'true'
@@ -318,6 +319,7 @@ jobs:
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --metadata-dir release-artifacts \
             --registry "$REGISTRY" \
+            --repo "${{ github.repository }}" \
             > release-body.md
       - name: update the github release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0

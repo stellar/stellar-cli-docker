@@ -17,7 +17,7 @@ source "$script_dir/lib/common.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/release-body.sh --stellar-cli-version <v> --metadata-dir <path> [--registry <ref>] [--help]
+Usage: scripts/release-body.sh --stellar-cli-version <v> --metadata-dir <path> [--registry <ref>] [--repo <slug>] [--help]
 
 Required:
   --stellar-cli-version <v>   The release this body is for (e.g. 26.0.0).
@@ -27,6 +27,9 @@ Required:
 Options:
   --registry <ref>            Registry path used in the rendered convenience-
                               tag lines. Default: docker.io/stellar/stellar-cli.
+  --repo <slug>               GitHub repository slug (owner/repo) used in the
+                              rendered `gh attestation verify --repo` example.
+                              Default: stellar/stellar-cli-docker.
   --help                      Show this message.
 
 Prints the release body markdown to stdout.
@@ -34,13 +37,15 @@ EOF
 }
 
 main() {
-  local cli="" metadata_dir="" registry="docker.io/stellar/stellar-cli"
+  local cli="" metadata_dir="" registry="docker.io/stellar/stellar-cli" \
+        repo="stellar/stellar-cli-docker"
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
       --metadata-dir)        require_value "$1" "${2:-}"; metadata_dir="$2"; shift 2;;
       --registry)            require_value "$1" "${2:-}"; registry="$2"; shift 2;;
+      --repo)                require_value "$1" "${2:-}"; repo="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -75,11 +80,11 @@ main() {
   local rows
   rows="$(jq -s 'sort_by(.rust_version, .arch)' "${meta_files[@]}")"
 
-  emit_body "$cli" "$rows" "$registry"
+  emit_body "$cli" "$rows" "$registry" "$repo"
 }
 
 emit_body() {
-  local cli="$1" rows="$2" registry="$3"
+  local cli="$1" rows="$2" registry="$3" repo="$4"
 
   printf '# stellar-cli %s\n\n' "$cli"
 
@@ -114,15 +119,16 @@ Each per-architecture image carries two independent attestation chains.
 
 ```sh
 gh attestation verify oci://<image>@<digest> \
-  --repo stellar/stellar-cli-docker
+EOF
+  printf '  --repo %s\n' "$repo"
+  cat <<'EOF'
 ```
 
 The repo includes `scripts/verify-image.sh` that wraps this for both provenance and SBOM:
 
-```sh
-./scripts/verify-image.sh --image <image>@<digest>
-```
-
+EOF
+  printf '```sh\n./scripts/verify-image.sh --image <image>@<digest> --repo %s\n```\n\n' "$repo"
+  cat <<'EOF'
 ### Registry-attached (cosign / docker buildx)
 
 ```sh

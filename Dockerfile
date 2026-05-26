@@ -14,6 +14,7 @@ ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
 ARG BUILDS_JSON_SHA
+ARG SOURCE_REPO
 
 FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST} AS builder
 ARG STELLAR_CLI_REV
@@ -53,6 +54,7 @@ ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
 ARG BUILDS_JSON_SHA
+ARG SOURCE_REPO
 ARG TARGETARCH
 
 # RUSTUP_TOOLCHAIN is baked in so an in-source `rust-toolchain.toml` in a
@@ -83,9 +85,9 @@ CMD []
 
 LABEL org.opencontainers.image.title="stellar-cli" \
       org.opencontainers.image.description="Stellar CLI image (SEP-58-compatible image for Stellar smart contracts)." \
-      org.opencontainers.image.source="https://github.com/stellar/stellar-cli-docker" \
-      org.opencontainers.image.url="https://github.com/stellar/stellar-cli-docker" \
-      org.opencontainers.image.documentation="https://github.com/stellar/stellar-cli-docker" \
+      org.opencontainers.image.source="https://github.com/${SOURCE_REPO}" \
+      org.opencontainers.image.url="https://github.com/${SOURCE_REPO}" \
+      org.opencontainers.image.documentation="https://github.com/${SOURCE_REPO}" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.vendor="Stellar Development Foundation" \
       org.opencontainers.image.version="${STELLAR_CLI_VERSION}" \

@@ -12,13 +12,13 @@ script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"
 
-REPO=stellar/stellar-cli-docker
+DEFAULT_REPO=stellar/stellar-cli-docker
 PROVENANCE_PREDICATE_TYPE=https://slsa.dev/provenance/v1
 SBOM_PREDICATE_TYPE=https://spdx.dev/Document
 
 usage() {
-  cat <<'EOF'
-Usage: scripts/verify-image.sh --image <ref> [--help]
+  cat <<EOF
+Usage: scripts/verify-image.sh --image <ref> [--repo <slug>] [--help]
 
 Required:
   --image <ref>   Full image reference, pinned to a per-arch digest.
@@ -27,21 +27,25 @@ Required:
                   point of verification is to prove a specific digest.
 
 Options:
+  --repo <slug>   GitHub repository slug (owner/repo) whose Actions OIDC
+                  identity signed the attestation. Default: ${DEFAULT_REPO}.
+                  Override when verifying an image published from a fork.
   --help          Show this message.
 
-Runs two `gh attestation verify` calls against the published image, one for
+Runs two \`gh attestation verify\` calls against the published image, one for
 each predicate type. Both must succeed for the verification to pass.
 
-Requires the `gh` CLI to be installed and authenticated.
+Requires the \`gh\` CLI to be installed and authenticated.
 EOF
 }
 
 main() {
-  local image=""
+  local image="" repo="$DEFAULT_REPO"
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --image)   require_value "$1" "${2:-}"; image="$2"; shift 2;;
+      --repo)    require_value "$1" "${2:-}"; repo="$2"; shift 2;;
       -h|--help) usage; exit 0;;
       *)         err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -61,12 +65,12 @@ main() {
   local oci_ref="oci://${image}"
   local rc=0
 
-  log "verifying $image against $REPO ..."
+  log "verifying $image against $repo ..."
 
   log ""
   log "[1/2] SLSA build provenance"
   if gh attestation verify "$oci_ref" \
-      --repo "$REPO" \
+      --repo "$repo" \
       --predicate-type "$PROVENANCE_PREDICATE_TYPE"; then
     log "  ok"
   else
@@ -77,7 +81,7 @@ main() {
   log ""
   log "[2/2] SPDX SBOM"
   if gh attestation verify "$oci_ref" \
-      --repo "$REPO" \
+      --repo "$repo" \
       --predicate-type "$SBOM_PREDICATE_TYPE"; then
     log "  ok"
   else

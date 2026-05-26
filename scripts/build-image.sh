@@ -23,6 +23,9 @@ Options:
                                host's native architecture.
   --tag <ref>                  Override the local tag. Default:
                                stellar-cli:<cli>-rust<rust>
+  --source-repo <slug>         GitHub repository slug (owner/repo) baked into
+                               the image's OCI source/url/documentation labels.
+                               Default: stellar/stellar-cli-docker.
   --help                       Show this message.
 
 The script builds locally only. Publishing is handled by a separate script.
@@ -30,7 +33,7 @@ EOF
 }
 
 main() {
-  local cli="" rust="" platform="" tag=""
+  local cli="" rust="" platform="" tag="" source_repo="stellar/stellar-cli-docker"
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -38,6 +41,7 @@ main() {
       --rust-version)        require_value "$1" "${2:-}"; rust="$2"; shift 2;;
       --platform)            require_value "$1" "${2:-}"; platform="$2"; shift 2;;
       --tag)                 require_value "$1" "${2:-}"; tag="$2"; shift 2;;
+      --source-repo)         require_value "$1" "${2:-}"; source_repo="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -81,6 +85,7 @@ main() {
     --build-arg "STELLAR_CLI_VERSION=$cli" \
     --build-arg "BUILD_DATE=$build_date" \
     --build-arg "BUILDS_JSON_SHA=$builds_json_sha" \
+    --build-arg "SOURCE_REPO=$source_repo" \
     --tag "$tag" \
     "$(repo_root)"
 
