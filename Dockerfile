@@ -39,9 +39,11 @@ RUN cargo install --locked --root /out \
 # Fail the build loudly if the binary's reported version disagrees with the
 # version the caller declared. Catches accidental ref/version drift in
 # builds.json at build time, not later when an image is already published.
-RUN installed="$(/out/bin/stellar version --only-version)" \
-    && test "$installed" = "${STELLAR_CLI_VERSION}" \
-    || { echo "stellar-cli version mismatch: binary reports '$installed', expected '${STELLAR_CLI_VERSION}'" >&2; exit 1; }
+RUN installed_version="$(/out/bin/stellar version --only-version)" \
+     && installed_rev="$(/out/bin/stellar version | head -n1 | grep -oE '[0-9a-f]{40}')" \
+     && test "$installed_version" = "${STELLAR_CLI_VERSION}" \
+     && test "$installed_rev" = "${STELLAR_CLI_REV}" \
+     || { echo "stellar-cli mismatch: binary reports version='$installed_version' rev='$installed_rev', expected version='${STELLAR_CLI_VERSION}' rev='${STELLAR_CLI_REV}'" >&2; exit 1; }
 
 FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST}
 ARG RUST_VERSION
