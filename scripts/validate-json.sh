@@ -9,9 +9,7 @@
 # Exits 0 on success, 1 on any failure. Prints a useful diff on key-order
 # failures.
 
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'

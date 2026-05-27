@@ -7,9 +7,7 @@
 # the inputs build-image.sh needs plus the precomputed arch suffix for
 # callers that don't want to translate the platform string themselves.
 
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'

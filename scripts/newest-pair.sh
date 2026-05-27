@@ -4,9 +4,7 @@
 # Used by CI to pick a single representative image for the smoke build, and
 # usable interactively when you want to remember what `:latest` resolves to.
 
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'

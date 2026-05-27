@@ -7,9 +7,7 @@
 # dry-run / debugging — every step is `git`-safe (builds.json is the only
 # file touched).
 
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'
@@ -100,13 +98,13 @@ main() {
   fi
 
   log "resolving upstream stellar-cli ref ..."
-  "$script_dir/refresh-stellar-cli-digests.sh"
+  scripts/refresh-stellar-cli-digests.sh
 
   log "resolving rust image digests ..."
-  "$script_dir/refresh-rust-digests.sh"
+  scripts/refresh-rust-digests.sh
 
   log "validating builds.json ..."
-  "$script_dir/validate-json.sh"
+  scripts/validate-json.sh
 
   # If nothing actually changed in builds.json (compared to the snapshot
   # we took at the top of main), there is nothing to release. Happens on a

@@ -9,9 +9,7 @@
 # immediately rather than at the next manual pin bump. Same-arch only;
 # cross-arch byte equality is not promised.
 
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 DEFAULT_REPO=https://github.com/stellar/soroban-examples.git
 DEFAULT_REV=main

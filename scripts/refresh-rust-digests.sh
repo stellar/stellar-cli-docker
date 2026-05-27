@@ -7,9 +7,7 @@
 # Output stays sorted because the script edits the existing
 # rust_image_digests map (already alphabetical) without changing keys.
 
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'
