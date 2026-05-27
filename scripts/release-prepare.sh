@@ -238,9 +238,6 @@ pick_release_tag() {
   local cli_pat
   cli_pat="$(printf '%s' "$cli" | sed 's/\./\\./g')"
 
-  # Let gh failures (auth, network, API outage) propagate — silently
-  # treating them as "no releases" would suggest tag v<cli> even when one
-  # really exists, leading to a confusing create-release link in the PR.
   local existing_tags
   existing_tags="$(gh release list --limit 200 --json tagName --jq '.[].tagName')"
 
