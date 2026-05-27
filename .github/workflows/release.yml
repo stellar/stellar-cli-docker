@@ -1,0 +1,111 @@
+---
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      stellar_cli_version:
+        description: stellar-cli version to release (e.g. 26.1.0 for a new release, or an existing version like 26.0.0 to refresh its rust pairings)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    name: prepare release ${{ inputs.stellar_cli_version }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: install check-jsonschema
+        run: pipx install check-jsonschema
+
+      - name: configure git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: stage builds.json
+        id: prepare
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STELLAR_CLI_VERSION: ${{ inputs.stellar_cli_version }}
+        run: |
+          tag="$(./scripts/release-prepare.sh \
+            --stellar-cli-version "$STELLAR_CLI_VERSION")"
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: create release branch
+        run: |
+          git checkout -b "release/${{ steps.prepare.outputs.release_tag }}"
+
+      - name: commit and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
+        run: ./scripts/release-push-branch.sh --release-tag "$RELEASE_TAG"
+
+      - name: open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.stellar_cli_version }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Title and notes wording depend on whether this is a fresh
+          # release or a refresh iteration of an existing release.
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            title="Refresh stellar-cli ${VERSION} (${RELEASE_TAG#v})"
+            kind="refresh"
+          else
+            title="Release stellar-cli ${VERSION}"
+            kind="new release"
+          fi
+
+          gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "release/${RELEASE_TAG}" \
+            --title "$title" \
+            --body "$(cat <<EOF
+          ### What
+
+          Stage a $kind for stellar-cli ${VERSION}. \`builds.json\` is updated with the rust pairings auto-picked from the current last two minor stable releases on \`rust-lang/rust\`, and any new \`rust_image_digests\` entries are resolved.
+
+          ### Why
+
+          Triggered by @${ACTOR} in ${RUN_URL}.
+
+          ### What is next
+
+          See [RELEASE.md](./RELEASE.md) for the full release process.
+
+          Push any further changes to the \`release/${RELEASE_TAG}\` branch that are needed in this release (for example, adjusting the paired \`rust_versions\` if the auto-pick isn't right for this iteration).
+
+          When this PR is reviewed and merged, create a GitHub Release by going to:
+
+          https://github.com/${REPO}/releases/new?tag=${RELEASE_TAG}&title=${RELEASE_TAG#v}&target=${{ github.event.repository.default_branch }}
+
+          The publish workflow fires on the release-published event and:
+          - Builds and pushes per-arch images for any new (cli, rust) pairs; existing pairs are skipped with a warning (per-arch tags are immutable)
+          - Generates SLSA build provenance + SPDX SBOM attestations on each newly-built image (buildx-native + GitHub-native chains)
+          - Re-points the \`:${VERSION}\` and (if newest) \`:latest\` aliases
+          - Attaches the SBOM and provenance files to the new GitHub Release, with per-arch digests in the body
+          EOF
+          )"
+
+  complete:
+    if: always()
+    needs:
+      - prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - name: check upstream jobs
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+

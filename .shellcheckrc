@@ -1,10 +1,11 @@
 # Follow `source` directives so SC1091 doesn't fire on every lib/common.sh.
 external-sources=true
 
-# Resolve `# shellcheck source=...` paths relative to the script being
-# checked, so `source=lib/common.sh` works from any script under scripts/
-# regardless of the working directory shellcheck is invoked from.
-source-path=SCRIPTDIR
+# Resolve `source` paths relative to the parent of each script's directory,
+# which is the repo root for everything under scripts/. Matches the runtime
+# convention that scripts run with PWD=repo_root and source `scripts/lib/...`
+# verbatim, so no per-script `# shellcheck source=` pragma is needed.
+source-path=SCRIPTDIR/..
 
 # SC2016 fires whenever a single-quoted string contains `$something`, but
 # we use single-quoted jq expressions like '.foo[$v]' all over the place

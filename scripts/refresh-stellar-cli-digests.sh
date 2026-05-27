@@ -7,11 +7,7 @@
 # is blank or invalid, never silently rewriting an already-pinned SHA.
 # Bumping a pinned SHA must be requested per version via --stellar-cli-version.
 
-set -euo pipefail
-
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 STELLAR_CLI_REPO="https://github.com/stellar/stellar-cli.git"
 
@@ -51,7 +47,7 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stellar-cli-version) only_version="$2"; shift 2;;
+      --stellar-cli-version) require_value "$1" "${2:-}"; only_version="$2"; shift 2;;
       --dry-run)             dry_run=1; shift;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;

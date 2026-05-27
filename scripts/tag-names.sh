@@ -13,11 +13,7 @@
 # Output: exactly one tag on stdout, with no registry/repo prefix. Callers
 # prepend `docker.io/stellar/stellar-cli:` (or whatever) as needed.
 
-set -euo pipefail
-
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'
@@ -49,9 +45,9 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stellar-cli-version) cli="$2"; shift 2;;
-      --rust-version)        rust="$2"; shift 2;;
-      --platform)            platform="$2"; shift 2;;
+      --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
+      --rust-version)        require_value "$1" "${2:-}"; rust="$2"; shift 2;;
+      --platform)            require_value "$1" "${2:-}"; platform="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac

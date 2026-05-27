@@ -1,0 +1,174 @@
+# Releasing Stellar CLI images
+
+This document covers the maintainer side of `stellar/stellar-cli-docker` — how to publish a new Stellar CLI image and what the publish workflow does on your behalf.
+
+## What gets published
+
+Each release publishes to `docker.io/stellar/stellar-cli`:
+
+- **Per-architecture images** — `:<cli>-rust<rust>-amd64` and `:<cli>-rust<rust>-arm64`. Each one is a single-architecture manifest with its own SHA-256 digest; this is the form a consumer cites in a SEP-58 `bldimg` field.
+- **Multi-arch manifest list** per `(cli, rust)` pair — `:<cli>-rust<rust>` resolves to the right per-arch image at pull time.
+- **Convenience aliases** — `:<cli>` points at the manifest list for that cli paired with its `default_rust`. `:latest` points at the newest declared cli's default-rust manifest list. **Aliases must never be used in `bldimg`** — they move.
+- **Two attestation chains** — buildx-native (SLSA build provenance + SPDX SBOM attached in the registry alongside the image) and GitHub-native (the same predicates signed and stored in the repo's attestation store, verifiable via `gh attestation verify`).
+- **A GitHub Release** for every publish run, with per-architecture digests in the body and the SBOM + provenance files attached as downloadable assets. The release is created by a maintainer following the link in the release PR (see [Releasing](#releasing--new-cli-version-or-refreshing-an-existing-one) below); publishing it triggers the workflow that enriches the release with the images' digests and supply-chain artifacts.
+
+The single source of truth for which `(cli, rust)` pairs we publish is [`builds.json`](./builds.json). Releases happen one stellar-cli version per workflow run.
+
+## Repository setup
+
+The workflows expect the following GitHub repository configuration. Settings live under **Settings → Secrets and variables → Actions** on the repo.
+
+### Required secrets
+
+| Secret | Used by | Purpose |
+| --- | --- | --- |
+| `DOCKERHUB_USERNAME` | `publish.yml` | Username for the `docker/login-action` that authenticates pushes to Docker Hub. |
+| `DOCKERHUB_TOKEN` | `publish.yml` | Access token for the same Docker Hub login. Use a scoped access token, not the account password. |
+
+### Optional variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `REGISTRY` | `docker.io/stellar/stellar-cli` | Registry path to push images to. Override on a fork to publish to a personal registry for testing (e.g. `docker.io/<user>/stellar-cli-experimental`). Threaded through `publish.yml`'s build/manifest/aliases jobs and into `scripts/release-body.sh` so the rendered release body matches whatever registry was published to. |
+
+### Required workflow permissions
+
+These are set in the workflow YAML, not in repo settings — but worth knowing what each is for if you're reviewing or hardening:
+
+- `contents: write` (`publish.yml`, `release.yml`) — `publish.yml`'s release job updates the GitHub Release; `release.yml` pushes the release branch.
+- `attestations: write` (`publish.yml`) — `actions/attest-build-provenance` and `actions/attest-sbom` publish to the repo's attestation store.
+- `id-token: write` (`publish.yml`) — OIDC token used by buildx provenance and the attest actions for keyless Sigstore signing.
+- `pull-requests: write` (`release.yml`) — `gh pr create` opens the release PR.
+
+### Branch protection
+
+The `complete` job in each workflow (`lint.yml`, `build.yml`, `publish.yml`, `release.yml`) is a single aggregator status check. Configure branch protection on `main` to require these checks before merging:
+
+- `lint / complete`
+- `build / complete`
+
+The `publish` and `release` workflows fire on release events / dispatch and don't gate merges to `main`.
+
+## Release tag scheme
+
+Every release gets a unique tag. Tags are never reused or updated in place.
+
+- **First release of a stellar-cli version**: `v<version>` (e.g. `v26.0.0`).
+- **Refresh of the same stellar-cli version**: `v<version>-<N>` (e.g. `v26.0.0-1`, `v26.0.0-2`). The `-N` increments per refresh.
+
+The `release` workflow picks the next available tag automatically by looking at existing releases. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0` page stays intact when `v26.0.0-1` is later published.
+
+Docker image tags (`:26.0.0-rust1.94.0-amd64` etc.) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + rust + arch. Moving aliases (`:26.0.0`, `:latest`) re-point on every publish, regardless of which iteration.
+
+## Releasing — new cli version, or refreshing an existing one
+
+Same workflow for both. PR review is the gate; a GitHub Release is the publish trigger. No manual tag pushes.
+
+1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0` for a brand-new release, or `26.0.0` to refresh an already-published cli with the current latest rust pairings). The workflow:
+
+   - Detects whether this is a **new release** (cli not yet declared) or a **refresh** (cli exists in `builds.json`).
+   - Picks the last two minor stable rust versions, at their latest patch each, from `rust-lang/rust` GitHub releases. The newer one becomes `default_rust`.
+   - Updates `builds.json`: adds a new entry, or replaces the existing entry's `rust_versions` and `default_rust`. Resolves the upstream cli commit SHA and any missing rust image digests.
+   - Validates the result.
+   - Picks the next available release tag — `v<version>` for a fresh release, `v<version>-<N>` for a refresh.
+   - Pushes a `release/<tag>` branch and opens a PR with a body modeled on stellar-cli's release PRs, including a pre-filled link to create the GitHub Release on merge.
+
+2. **Review and adjust** the PR. The auto-pick of rust versions is a sensible default but not always right; if you want different `rust_versions` for this iteration, push commits to the release branch before merging. The PR-time `lint` and `build` workflows re-do validation and smoke-build on every push.
+
+3. **Merge the PR** once approved. `builds.json` now declares the new release state.
+
+4. **Publish the release** by following the `Create release` link in the PR body. That opens `Releases → New release` with the tag pre-filled; add notes (or use `Generate release notes`), then **Publish release**.
+
+   The `publish` workflow fires on the `release: published` event and:
+
+   - Builds and pushes per-arch images for any **new** (cli, rust) pairs. Existing pairs (already in the registry) are **skipped with a ⚠️ warning** in the run summary — per-arch tags are immutable.
+   - Generates SLSA build provenance + SPDX SBOM attestations on each freshly-built image (buildx-native + GitHub-native chains).
+   - Re-points the `:<cli>` and (if newest) `:latest` aliases.
+   - Updates the new GitHub Release: appends per-architecture digests for every declared pair (whether built fresh or previously published) and verification commands to the body, attaches the SBOM and provenance files for the freshly-built pairs as downloadable assets.
+
+### Manual / local prepare
+
+If you'd rather run the prepare step yourself (e.g. to debug an auto-pick that's failing), do it locally:
+
+```sh
+./scripts/release-prepare.sh --stellar-cli-version 26.1.0
+# Optional: pin specific rust versions instead of the auto-pick
+./scripts/release-prepare.sh --stellar-cli-version 26.1.0 --rust-versions 1.93.0,1.94.0
+```
+
+The script prints the chosen release tag as its final stdout line. Commit and push the resulting `builds.json` change yourself, open the PR with that tag, and continue from step 3 above.
+
+### Validating locally before pushing
+
+```sh
+./scripts/validate-json.sh
+./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0
+./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0 \
+  --stellar-cli-version 26.1.0 --rust-version 1.95.0
+./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0
+```
+
+The smoke test confirms the binary reports the expected version and the labels are correct. The repro test confirms `stellar contract build --locked` produces byte-identical WASM across two clean builds. CI does the same against the freshly-built image on every PR push.
+
+## What the publish workflow does
+
+Triggered exclusively by the `release: published` event — when a maintainer clicks **Publish release** in the GitHub UI for a `v<version>` tag. There is no manual-dispatch entry point: publishing always goes through a reviewed `builds.json` PR and a GitHub Release page, so accidental ad-hoc publishes are off the table. Each run publishes **exactly one** cli version.
+
+| Job              | What it does                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust, arch)` rows for that one cli.                                                                                                                                                                     |
+| `build` (matrix) | Native runner per arch (`ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64). Checks if the per-arch tag exists in the registry: **already-published pairs are skipped with a ⚠️ warning**; only their metadata (digest from the registry) is uploaded as an artifact. Fresh pairs build + push via `docker/build-push-action` with `provenance: mode=max` and `sbom: true`, then attest with `actions/attest-build-provenance` and `actions/attest-sbom`. Either way, the workflow artifacts feed the `release` job. |
+| `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<rust>` per rust version. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                                                                                                              |
+| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default_rust)`. If this cli is the newest declared, also re-points `:latest`. Aliases are intentionally moving.                                                                                                                                                                                                                                                                                                                                                   |
+| `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release-body.sh` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                                                                                                                                |
+| `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
+
+## Tag immutability and restarts
+
+Per-architecture tags (`:<cli>-rust<rust>-<arch>`) and per-pair manifest lists (`:<cli>-rust<rust>`) on Docker Hub are **immutable**. When the publish workflow sees an existing tag, it skips that row with a ⚠️ warning surfaced in the run's Annotations panel and step summary — never overwrites. There is no force flag and no workflow input to override this.
+
+Moving aliases (`:<cli>`, `:latest`) are exempt; they're documented as moving and re-pointed each release.
+
+To recover from a failed run, use **Re-run failed jobs** from the GitHub Actions UI. Already-successful jobs aren't re-run, and re-runs of failed jobs simply re-attempt the build (existing tags still skip, missing tags get built).
+
+To genuinely re-publish a content-immutable tag (e.g. recovering from a corrupt push), delete the offending tag in Docker Hub by hand first, then click **Re-run all jobs** on the original publish run. The workflow re-uses the originating release-published event context, so no manual trigger is needed.
+
+## Bumping a pinned base or ref
+
+Pinned values in `builds.json` are intentional. Bumping them changes the bytes of published images and invalidates anything that already referenced the prior digest, so it's a deliberate action.
+
+```sh
+./scripts/refresh-rust-digests.sh --rust-version 1.94.0
+./scripts/refresh-stellar-cli-digests.sh --stellar-cli-version 26.1.0
+```
+
+Both target-specific commands skip the blank-only check and re-resolve from upstream. Commit the resulting `builds.json` change and run the release flow as if it were a new release — the immutability guard will refuse to overwrite already-published tags, so you also need to delete those tags from Docker Hub first (or bump the cli version, the cleaner option).
+
+## Verifying a freshly published release
+
+After a release publish succeeds, sanity-check the attestations:
+
+```sh
+# Extract a per-arch digest:
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0-rust1.94.0-amd64
+
+# Verify both attestation chains in one command:
+./scripts/verify-image.sh --image docker.io/stellar/stellar-cli@sha256:<digest>
+```
+
+Or directly:
+
+```sh
+gh attestation verify oci://docker.io/stellar/stellar-cli@sha256:<digest> \
+  --repo stellar/stellar-cli-docker
+cosign verify-attestation --type slsaprovenance \
+  docker.io/stellar/stellar-cli@sha256:<digest>
+```
+
+Both attestation chains have the same trust root (the runner's GitHub Actions OIDC identity); they differ only in verification UX.
+
+## Pairing an already-released cli with a new rust toolchain
+
+Use the same `release` workflow with the existing cli version. The workflow detects the cli is already declared, runs in refresh mode, picks the current last-two-minor rusts, and opens a PR. After merging, create the GH Release pre-filled at `v<cli>-1` (or `-2`, etc.) per the [release tag scheme](#release-tag-scheme). The new rust pair builds; already-published pairs skip with a warning; aliases re-point as needed.
+
+No friction, no manual tag deletion. The historical `v<cli>` release page stays as a snapshot of the initial publish.

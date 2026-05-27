@@ -1,8 +1,18 @@
 # shellcheck shell=bash
-# Shared helpers for scripts in this repo. Source from other scripts via:
-#   source "$(dirname "$0")/lib/common.sh"
+# Shared helpers for scripts in this repo. Source from each script's top
+# (assumes CWD is the repo root):
+#   source scripts/lib/common.sh
+
+# Bash version guard runs before `shopt -s inherit_errexit` below, which
+# is bash 4.4+. macOS ships 3.2 by default.
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+  printf 'error: scripts need bash 4.4+ (current: %s); on macOS: brew install bash, then ensure it precedes /bin/bash on PATH\n' \
+    "${BASH_VERSION:-unknown}" >&2
+  exit 1
+fi
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # repo_root resolves to the absolute path of the repo, regardless of where
 # the caller invoked from. All scripts assume builds.json lives at this root.
@@ -35,27 +45,24 @@ require_cmd() {
   done
 }
 
-# Minimum bash version this project's scripts rely on. Bump in one place.
-# 4.3 is what `local -n` (used by the apply_updates helpers) requires;
-# 4.0 covers `declare -A`. macOS ships bash 3.2 by default.
-REQUIRED_BASH_MAJOR=4
-REQUIRED_BASH_MINOR=3
-
-require_bash() {
-  if (( BASH_VERSINFO[0] < REQUIRED_BASH_MAJOR \
-      || (BASH_VERSINFO[0] == REQUIRED_BASH_MAJOR && BASH_VERSINFO[1] < REQUIRED_BASH_MINOR) )); then
-    die "this script needs bash ${REQUIRED_BASH_MAJOR}.${REQUIRED_BASH_MINOR}+ (current: ${BASH_VERSION:-unknown}); on macOS: brew install bash, then ensure it's on PATH ahead of /bin/bash"
-  fi
+# require_value <flag> <value>
+# Aborts with a clear error if <value> is empty. Use at the top of each
+# --flag case arm:  require_value "$1" "${2:-}"
+# Prevents the unhelpful "$2: unbound variable" crash that `set -u`
+# emits when a user passes a flag with no value (e.g. `--image` at EOL).
+require_value() {
+  local flag="$1" value="${2:-}"
+  test -n "$value" || die "missing value for $flag"
 }
 
 # preflight_checks [required-cmds...] is the one call every script makes
-# at the top of main(). Validates the shell version first, then verifies
-# each named command. Recognised pseudo-tokens:
+# at the top of main(). Verifies each named command. Recognised
+# pseudo-tokens:
 #   sha256 — at least one of sha256sum or shasum must exist (backs sha256_of).
 #   buildx — docker exists AND the buildx plugin is functional. Implies docker.
 # Anything else is treated as a literal command name.
+# (Bash version is enforced at source time; see top of file.)
 preflight_checks() {
-  require_bash
   local tok
   local cmds=()
   for tok in "$@"; do

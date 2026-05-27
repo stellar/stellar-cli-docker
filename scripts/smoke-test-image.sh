@@ -6,11 +6,7 @@
 # Exits non-zero on any failure. Prints what's being checked so CI logs are
 # useful when something breaks.
 
-set -euo pipefail
-
-script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
-source "$script_dir/lib/common.sh"
+source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'
@@ -44,9 +40,9 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --image)               image="$2"; shift 2;;
-      --stellar-cli-version) cli="$2"; shift 2;;
-      --rust-version)        rust="$2"; shift 2;;
+      --image)               require_value "$1" "${2:-}"; image="$2"; shift 2;;
+      --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
+      --rust-version)        require_value "$1" "${2:-}"; rust="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
