@@ -74,7 +74,7 @@ main() {
   done
 
   local rows
-  rows="$(jq -s 'sort_by(.rust_version, .arch)' "${meta_files[@]}")"
+  rows="$(jq -s 'sort_by((.rust_version | split(".") | map(tonumber)), .arch)' "${meta_files[@]}")"
 
   emit_body "$cli" "$rows" "$registry" "$repo"
 }
@@ -91,7 +91,7 @@ emit_body() {
   local rust
   while IFS= read -r rust; do
     printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$rust"
-  done < <(jq -r '. | map(.rust_version) | unique | .[]' <<<"$rows")
+  done < <(jq -r 'map(.rust_version) | unique | sort_by(split(".") | map(tonumber)) | .[]' <<<"$rows")
 
   printf '\n## Per-architecture digests (for SEP-58 `bldimg`)\n\n'
   printf 'Use the per-architecture digest when recording `bldimg` in your contract metadata. Never use a moving tag like `:latest` or `:%s`.\n\n' "$cli"
@@ -144,7 +144,7 @@ emit_body() {
     done <<<"$rust_rows"
 
     printf '```\n\n'
-  done < <(jq -r '. | map(.rust_version) | unique | .[]' <<<"$rows")
+  done < <(jq -r 'map(.rust_version) | unique | sort_by(split(".") | map(tonumber)) | .[]' <<<"$rows")
 
   cat <<'EOF'
 ## Verification
