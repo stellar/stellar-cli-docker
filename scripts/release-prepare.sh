@@ -7,8 +7,6 @@
 # dry-run / debugging — every step is `git`-safe (builds.json is the only
 # file touched).
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

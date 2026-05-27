@@ -6,8 +6,6 @@
 # Exits non-zero on any failure. Prints what's being checked so CI logs are
 # useful when something breaks.
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

@@ -3,8 +3,6 @@
 # Looks up the pinned base image digest and stellar-cli commit SHA from
 # builds.json so the inputs come from one source of truth.
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

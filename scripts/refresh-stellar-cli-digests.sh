@@ -7,8 +7,6 @@
 # is blank or invalid, never silently rewriting an already-pinned SHA.
 # Bumping a pinned SHA must be requested per version via --stellar-cli-version.
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

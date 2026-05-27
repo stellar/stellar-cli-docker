@@ -6,8 +6,6 @@
 # Intended for SEP-58 verifiers and any consumer about to record a `bldimg`
 # digest. Reports cleanly per chain so a partial failure is easy to read.
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

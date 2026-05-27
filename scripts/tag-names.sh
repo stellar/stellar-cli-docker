@@ -13,8 +13,6 @@
 # Output: exactly one tag on stdout, with no registry/repo prefix. Callers
 # prepend `docker.io/stellar/stellar-cli:` (or whatever) as needed.
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

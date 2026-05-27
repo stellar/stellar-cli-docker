@@ -9,8 +9,6 @@
 # immediately rather than at the next manual pin bump. Same-arch only;
 # cross-arch byte equality is not promised.
 
-set -euo pipefail
-
 script_dir="$(CDPATH='' builtin cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"

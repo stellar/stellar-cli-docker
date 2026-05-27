@@ -3,6 +3,7 @@
 #   source "$(dirname "$0")/lib/common.sh"
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # repo_root resolves to the absolute path of the repo, regardless of where
 # the caller invoked from. All scripts assume builds.json lives at this root.
