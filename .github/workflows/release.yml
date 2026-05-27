@@ -46,31 +46,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
-        run: |
-          branch="release/${RELEASE_TAG}"
-
-          git add builds.json
-          git commit -m "Release ${RELEASE_TAG}."
-
-          # Three re-dispatch cases for the same release_tag:
-          #   - fresh: branch doesn't exist on remote → normal push
-          #   - orphan: branch exists, no open PR for it (prior run failed
-          #     after pushing but before PR creation) → force-push to overwrite
-          #   - open PR: branch exists with a live PR → bail, ask the human
-          #     to close it or pick a different version (don't silently
-          #     clobber a PR mid-review)
-          push_args=()
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            open_pr="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')"
-            if [ -n "$open_pr" ]; then
-              echo "::error::$branch already has an open PR (#$open_pr). Close it or pick a different version."
-              exit 1
-            fi
-            echo "::warning::$branch exists on remote with no open PR (orphan from a prior failed run); force-pushing."
-            push_args=(--force)
-          fi
-
-          git push "${push_args[@]}" origin "$branch"
+        run: ./scripts/release-push-branch.sh --release-tag "$RELEASE_TAG"
 
       - name: open pull request
         env:
