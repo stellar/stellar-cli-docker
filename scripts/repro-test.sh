@@ -27,7 +27,7 @@ Usage: scripts/repro-test.sh --image <ref> [options] [--help]
 
 Required:
   --image <ref>          Image to test (e.g.
-                         stellar-cli:26.0.0-rust1.94.0-trixie or
+                         stellar-cli:26.0.0-rust1.94.0-slim-trixie or
                          docker.io/stellar/stellar-cli@sha256:...).
 
 Options:

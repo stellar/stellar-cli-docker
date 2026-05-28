@@ -58,7 +58,7 @@ Every release gets a unique tag. Tags are never reused or updated in place.
 
 The `release` workflow picks the next available tag automatically by looking at existing releases. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0` page stays intact when `v26.0.0-1` is later published.
 
-Docker image tags (`:26.0.0-rust1.94.0-trixie-amd64` etc.) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + rust base key + arch. Moving aliases (`:26.0.0`, `:latest`) re-point on every publish, regardless of which iteration.
+Docker image tags (`:26.0.0-rust1.94.0-slim-trixie-amd64` etc.) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + rust base key + arch. Moving aliases (`:26.0.0`, `:latest`) re-point on every publish, regardless of which iteration.
 
 ## Releasing — new cli version, or refreshing an existing one
 
@@ -102,10 +102,10 @@ The script prints the chosen release tag as its final stdout line. Commit and pu
 
 ```sh
 ./scripts/validate-json.sh
-./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0-trixie
-./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0-trixie \
-  --stellar-cli-version 26.1.0 --rust-version 1.95.0-trixie
-./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0-trixie
+./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
+./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0-slim-trixie \
+  --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
+./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0-slim-trixie
 ```
 
 The smoke test confirms the binary reports the expected version and the labels are correct. The repro test confirms `stellar contract build --locked` produces byte-identical WASM across two clean builds. CI does the same against the freshly-built image on every PR push.
@@ -135,28 +135,29 @@ To genuinely re-publish a content-immutable tag (e.g. recovering from a corrupt 
 
 ## Base image policy
 
-The Rust base image carries one choice we make deliberately: the **Debian codename** (e.g. `bookworm`, `trixie`). It appears in the upstream Rust image tag — `rust:<version>-<debian>` — and we encode it into our own image tag so the choice is visible and stays unique across future switches.
+The Rust base image carries two choices we make deliberately: the **variant** (`slim` vs the default buildpack-deps-based image) and the **Debian codename** (e.g. `bookworm`, `trixie`). Both appear in the upstream Rust image tag — `rust:<version>-[slim-]<debian>` — and we encode them into our own image tag so the choices are visible and stay unique across future switches.
 
-**We always use the non-`slim` upstream image.** The `slim` variant strips `buildpack-deps`, and our builder stage's pruned `apt-get install` line relies on `buildpack-deps` providing `build-essential`, `ca-certificates`, `git`, `libssl-dev`, and `pkg-config`. Switching to `slim` would silently break the builder. The non-`slim` image is also typically faster to pull on consumer hosts because its layers are widely cached.
+**Variant — use the `slim` upstream image.** SPDX JSON SBOMs grow with the file count of the image, not the package count. The buildpack-deps-based base ships the full GNU/Linux build toolchain (gcc, autoconf, make, perl, python, headers, locale data, manpages), pushing the file count into the tens of thousands and producing an SBOM that exceeds the per-file size limit imposed by `actions/attest` — the GitHub-native SBOM attestation step in `publish.yml` then fails. Slim's file count is roughly an order of magnitude smaller, so the SBOM fits. The builder stage installs `build-essential`, `ca-certificates`, `git`, `libssl-dev`, and `pkg-config` explicitly because slim doesn't ship them.
 
 **Debian codename — track the latest Ubuntu LTS upstream.** Each Ubuntu LTS is based on a Debian release. We default to that Debian. The current latest Ubuntu LTS is 26.04, which is based on Debian 13 (`trixie`), so `trixie` is today's default. We don't move to the newest Debian release the day it ships — we wait for the next Ubuntu LTS to track it, so users on the prevailing LTS host distro aren't running on a Debian newer than what their host's upstream tracks.
 
-**Tag — include the Debian codename.** The composite rust base key (e.g. `1.94.0-trixie`) flows verbatim into the published image tag: `<cli>-rust<key>[-arch]`. When we eventually move off `trixie`, the new images get a new tag suffix and the historical `trixie` tags stay addressable.
+**Tag — include variant + Debian.** The composite rust base key (e.g. `1.94.0-slim-trixie`) flows verbatim into the published image tag: `<cli>-rust<key>[-arch]`. When we eventually move off `trixie`, the new images get a new tag suffix and the historical tags stay addressable.
 
-### Switching the default Debian
+### Switching the default
 
-1. Update the keys in `builds.json`: rename `rust_image_digests` keys (and the matching `rust_versions[]` / `default_rust` entries) to the new `<rust>-<debian>` shape, then run `./scripts/refresh-rust-digests.sh` to fill them in against the new upstream tag.
-2. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
-3. Open a PR as usual; the publish flow then produces tags with the new suffix automatically.
+1. Update the keys in `builds.json`: rename `rust_image_digests` keys (and the matching `rust_versions[]` / `default_rust` entries) to the new `<rust>-[slim-]<debian>` shape, then run `./scripts/refresh-rust-digests.sh` to fill them in against the new upstream tag.
+2. If the variant changes, adjust the builder stage's `apt-get install` list in the `Dockerfile` (slim needs `build-essential`, `git`, `libssl-dev`, `pkg-config`, `ca-certificates`; buildpack-deps-based bases ship those, but their SBOM is too large to attest — see above).
+3. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
+4. Open a PR as usual; the publish flow then produces tags with the new suffix automatically.
 
-The `Dockerfile` itself doesn't need editing — its `FROM` lines reference the image by digest only, and the Debian codename shows up in labels (`org.opencontainers.image.base.name`, `org.stellar.rust-base-suffix`) via a build-arg passed from the matrix.
+The `Dockerfile`'s `FROM` lines reference the image by digest only; the variant + Debian codename show up in labels (`org.opencontainers.image.base.name`, `org.stellar.rust-base-suffix`) via a build-arg passed from the matrix.
 
 ## Bumping a pinned base or ref
 
 Pinned values in `builds.json` are intentional. Bumping them changes the bytes of published images and invalidates anything that already referenced the prior digest, so it's a deliberate action.
 
 ```sh
-./scripts/refresh-rust-digests.sh --rust-version 1.94.0-trixie
+./scripts/refresh-rust-digests.sh --rust-version 1.94.0-slim-trixie
 ./scripts/refresh-stellar-cli-digests.sh --stellar-cli-version 26.1.0
 ```
 
@@ -168,7 +169,7 @@ After a release publish succeeds, sanity-check the attestations:
 
 ```sh
 # Extract a per-arch digest:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0-rust1.94.0-trixie-amd64
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0-rust1.94.0-slim-trixie-amd64
 
 # Verify both attestation chains in one command:
 ./scripts/verify-image.sh --image docker.io/stellar/stellar-cli@sha256:<digest>

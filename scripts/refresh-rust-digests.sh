@@ -6,8 +6,8 @@
 # --rust-version.
 #
 # Each rust_image_digests key is the composite base key the upstream tag
-# carries — e.g. 1.94.0-trixie maps to rust:1.94.0-trixie. The script
-# uses the key verbatim as the upstream tag to inspect.
+# carries — e.g. 1.94.0-slim-trixie maps to rust:1.94.0-slim-trixie. The
+# script uses the key verbatim as the upstream tag to inspect.
 #
 # Output stays sorted because the script edits the existing
 # rust_image_digests map (already alphabetical) without changing keys.

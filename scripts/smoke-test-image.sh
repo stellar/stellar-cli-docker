@@ -18,7 +18,7 @@ Usage: scripts/smoke-test-image.sh \
 
 Required:
   --image <ref>                Image to test (e.g.
-                               stellar-cli:26.0.0-rust1.94.0-trixie or a
+                               stellar-cli:26.0.0-rust1.94.0-slim-trixie or a
                                registry digest). Must already be present
                                in the local docker daemon.
   --stellar-cli-version <v>    The stellar-cli version the image should

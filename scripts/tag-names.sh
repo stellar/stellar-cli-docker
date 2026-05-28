@@ -34,11 +34,11 @@ Options:
   --help                      Show this message.
 
 Example:
-  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-trixie
-  26.0.0-rust1.94.0-trixie
-  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-trixie \
+  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie
+  26.0.0-rust1.94.0-slim-trixie
+  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie \
       --platform linux/amd64
-  26.0.0-rust1.94.0-trixie-amd64
+  26.0.0-rust1.94.0-slim-trixie-amd64
 EOF
 }
 

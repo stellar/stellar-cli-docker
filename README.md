@@ -39,7 +39,7 @@ list digest:
 
 ```sh
 # Find the per-arch digest for the architecture you used to build:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0-rust1.94.0-trixie
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0-rust1.94.0-slim-trixie
 ```
 
 Record the per-arch digest in your contract's `bldimg` metadata. A verifier
@@ -67,11 +67,11 @@ compare the resulting WASM sha256.
 ./scripts/validate-json.sh
 
 # Build a local image for a declared (cli, rust base) pair.
-./scripts/build-image.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-trixie
+./scripts/build-image.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie
 
 # Smoke-test the built image.
-docker run --rm stellar-cli:26.0.0-rust1.94.0-trixie --version
-docker run --rm stellar-cli:26.0.0-rust1.94.0-trixie contract build --help
+docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie --version
+docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie contract build --help
 
 # Resolve blank rust base image digests (maintainer task).
 ./scripts/refresh-rust-digests.sh --dry-run
