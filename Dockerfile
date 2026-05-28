@@ -29,8 +29,13 @@ ENV CARGO_HOME=/usr/local/cargo \
     DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        git \
         libdbus-1-dev \
+        libssl-dev \
         libudev-dev \
+        pkg-config \
     && rm -rf /var/lib/apt/lists/*
 RUN cargo install --locked --root /out \
         --git https://github.com/stellar/stellar-cli.git \
