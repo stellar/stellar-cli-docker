@@ -7,10 +7,15 @@
 # script so tag construction stays consistent across the repo.
 #
 # Tag scheme:
-#   multi-arch list:    <cli>-rust<key>
-#   per-arch:           <cli>-rust<key>-<arch>
+#   multi-arch list:               <cli>-rust<key>
+#   multi-arch list, ref-pinned:   <cli>-<ref>-rust<key>
+#   per-arch:                      <cli>-rust<key>-<arch>
 #
-# where <key> is the composite rust base key (e.g. 1.94.0-slim-trixie).
+# where <key> is the composite rust base key (e.g. 1.94.0-slim-trixie)
+# and <ref> is the full 40-char stellar-cli git SHA. The ref-pinned
+# form is only valid for multi-arch lists; per-arch tags never embed
+# the ref.
+#
 # Output: exactly one tag on stdout, with no registry/repo prefix.
 # Callers prepend `docker.io/stellar/stellar-cli:` (or whatever) as
 # needed.
@@ -30,7 +35,12 @@ Options:
   --platform <p>              linux/amd64 or linux/arm64 (Rust tier-1 only).
                               When set, the tag includes the per-arch suffix.
                               When omitted, the tag refers to the multi-arch
-                              manifest list.
+                              manifest list. Not valid with --stellar-cli-ref.
+  --stellar-cli-ref <sha>     40-char stellar-cli git SHA. When set, the tag
+                              embeds the ref between the cli version and the
+                              rust segment, producing a ref-pinned multi-arch
+                              alias of the plain list. Only valid for multi-
+                              arch lists (omit --platform).
   --help                      Show this message.
 
 Example:
@@ -39,17 +49,21 @@ Example:
   $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie \
       --platform linux/amd64
   26.0.0-rust1.94.0-slim-trixie-amd64
+  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie \
+      --stellar-cli-ref ee3115b93b9c11b7a4d090f676f35736d3d86172
+  26.0.0-ee3115b93b9c11b7a4d090f676f35736d3d86172-rust1.94.0-slim-trixie
 EOF
 }
 
 main() {
-  local cli="" rust_key="" platform=""
+  local cli="" rust_key="" platform="" ref=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
       --rust-version)        require_value "$1" "${2:-}"; rust_key="$2"; shift 2;;
       --platform)            require_value "$1" "${2:-}"; platform="$2"; shift 2;;
+      --stellar-cli-ref)     require_value "$1" "${2:-}"; ref="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
@@ -57,11 +71,18 @@ main() {
 
   test -n "$cli"      || { err "--stellar-cli-version is required"; usage; exit 1; }
   test -n "$rust_key" || { err "--rust-version is required"; usage; exit 1; }
+  if [ -n "$ref" ] && [ -n "$platform" ]; then
+    die "--stellar-cli-ref is only valid for multi-arch tags; pass without --platform"
+  fi
 
   # shellcheck disable=SC2119  # no required commands beyond bash itself
   preflight_checks
 
-  local tag="${cli}-rust${rust_key}"
+  local tag="$cli"
+  if [ -n "$ref" ]; then
+    tag="${tag}-${ref}"
+  fi
+  tag="${tag}-rust${rust_key}"
   if [ -n "$platform" ]; then
     tag="${tag}-$(arch_for_platform "$platform")"
   fi
