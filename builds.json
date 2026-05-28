@@ -1,26 +1,26 @@
 {
-  "$comment": "Source of truth for which (stellar-cli, rust) pairs we publish. Each stellar-cli release declares its own rust_versions[] at publish time; we do not cross-product. To refresh a rust_image_digest, capture the multi-arch INDEX digest via: docker buildx imagetools inspect rust:<version>-slim-bookworm --format '{{.Manifest.Digest}}'.",
+  "$comment": "Source of truth for which (stellar-cli, rust base) pairs we publish. Each stellar-cli release declares its own rust_versions[] at publish time; we do not cross-product. A rust base key joins the rust toolchain version, optional slim variant marker, and Debian codename with dashes (e.g. 1.94.0-trixie, 1.94.0-slim-trixie); see RELEASE.md '## Base image policy' for how the variant + Debian default is chosen. To refresh a rust_image_digest, capture the multi-arch INDEX digest via: docker buildx imagetools inspect rust:<key> --format '{{.Manifest.Digest}}'.",
   "$schema": "./builds.schema.json",
   "rust_image_digests": {
-    "1.90.0": "sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9",
-    "1.93.0": "sha256:776861219cd851131c1cec3bbd7cbeb16b99a794048097eb69ad9682a8ed0d57",
-    "1.94.0": "sha256:a86cada82e36ebd7a9bffed7548792c55a952fdb20718eea9278a936bcb76e62"
+    "1.90.0-trixie": "sha256:e227f20ec42af3ea9a3c9c1dd1b2012aa15f12279b5e9d5fb890ca1c2bb5726c",
+    "1.93.0-trixie": "sha256:bbde3ca426faeebab3eb58b8005d3d6da70607817a14bb92a55c94611d4d905f",
+    "1.94.0-trixie": "sha256:f17e723020f87c1b4ac4ff6d73c9dfbb7d5cb978754c76641e47337d65f61e12"
   },
   "stellar_cli_versions": [
     {
-      "default_rust": "1.90.0",
+      "default_rust": "1.90.0-trixie",
       "ref": "a048a57a75762458b487052e0021ea704a926bee",
       "rust_versions": [
-        "1.90.0"
+        "1.90.0-trixie"
       ],
       "version": "25.1.0"
     },
     {
-      "default_rust": "1.94.0",
+      "default_rust": "1.94.0-trixie",
       "ref": "60f7458e7ecffddf2f2d91dc6d0d2db4fab03ecc",
       "rust_versions": [
-        "1.93.0",
-        "1.94.0"
+        "1.93.0-trixie",
+        "1.94.0-trixie"
       ],
       "version": "26.0.0"
     }

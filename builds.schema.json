@@ -14,9 +14,9 @@
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
-    "rust_version": {
-      "description": "Rust toolchain version in the form major.minor.patch.",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+    "rust_base_key": {
+      "description": "Composite key identifying a Rust base image: rust toolchain version, optional slim variant marker, and Debian codename, joined with dashes. Examples: 1.94.0-trixie (full variant), 1.94.0-slim-trixie (slim variant).",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-slim)?-[a-z][a-z0-9]*$",
       "type": "string"
     },
     "semver": {
@@ -36,30 +36,30 @@
       "additionalProperties": {
         "$ref": "#/definitions/image_digest"
       },
-      "description": "Map from rust toolchain version to the pinned multi-arch index digest of rust:<version>-slim-bookworm.",
+      "description": "Map from rust base key (rust version + optional slim + Debian codename) to the pinned multi-arch index digest of the corresponding rust:<key> upstream image.",
       "minProperties": 1,
       "propertyNames": {
-        "$ref": "#/definitions/rust_version"
+        "$ref": "#/definitions/rust_base_key"
       },
       "type": "object"
     },
     "stellar_cli_versions": {
-      "description": "Each stellar-cli release we publish images for, with its explicit rust pairings.",
+      "description": "Each stellar-cli release we publish images for, with its explicit rust base pairings.",
       "items": {
         "additionalProperties": false,
         "properties": {
           "default_rust": {
-            "$ref": "#/definitions/rust_version",
-            "description": "Rust version used by the :<cli> tag alias (and, for the newest entry, :latest). Must also appear in rust_versions."
+            "$ref": "#/definitions/rust_base_key",
+            "description": "Rust base key used by the :<cli> tag alias (and, for the newest entry, :latest). Must also appear in rust_versions."
           },
           "ref": {
             "$ref": "#/definitions/git_sha",
             "description": "Upstream stellar/stellar-cli git commit SHA for this release. Source of truth; version is metadata."
           },
           "rust_versions": {
-            "description": "Explicit list of rust versions this stellar-cli release was built with at publish time.",
+            "description": "Explicit list of rust base keys this stellar-cli release was built with at publish time.",
             "items": {
-              "$ref": "#/definitions/rust_version"
+              "$ref": "#/definitions/rust_base_key"
             },
             "minItems": 1,
             "type": "array",
