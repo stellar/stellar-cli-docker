@@ -58,7 +58,7 @@ Every release gets a unique tag. Tags are never reused or updated in place.
 
 The `release` workflow picks the next available tag automatically by looking at existing releases. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0` page stays intact when `v26.0.0-1` is later published.
 
-Docker image tags (`:26.0.0-rust1.94.0-amd64` etc.) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + rust + arch. Moving aliases (`:26.0.0`, `:latest`) re-point on every publish, regardless of which iteration.
+Docker image tags (`:26.0.0-rust1.94.0-trixie-amd64` etc.) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + rust base key + arch. Moving aliases (`:26.0.0`, `:latest`) re-point on every publish, regardless of which iteration.
 
 ## Releasing — new cli version, or refreshing an existing one
 
@@ -102,10 +102,10 @@ The script prints the chosen release tag as its final stdout line. Commit and pu
 
 ```sh
 ./scripts/validate-json.sh
-./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0
-./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0 \
-  --stellar-cli-version 26.1.0 --rust-version 1.95.0
-./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0
+./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0-trixie
+./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0-trixie \
+  --stellar-cli-version 26.1.0 --rust-version 1.95.0-trixie
+./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0-trixie
 ```
 
 The smoke test confirms the binary reports the expected version and the labels are correct. The repro test confirms `stellar contract build --locked` produces byte-identical WASM across two clean builds. CI does the same against the freshly-built image on every PR push.
@@ -116,16 +116,16 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 
 | Job              | What it does                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust, arch)` rows for that one cli.                                                                                                                                                                     |
+| `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust base key, arch)` rows for that one cli.                                                                                                                                                                     |
 | `build` (matrix) | Native runner per arch (`ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64). Checks if the per-arch tag exists in the registry: **already-published pairs are skipped with a ⚠️ warning**; only their metadata (digest from the registry) is uploaded as an artifact. Fresh pairs build + push via `docker/build-push-action` with `provenance: mode=max` and `sbom: true`, then attest with `actions/attest-build-provenance` and `actions/attest-sbom`. Either way, the workflow artifacts feed the `release` job. |
-| `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<rust>` per rust version. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                                                                                                              |
+| `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<key>` per rust base key. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                                                                                                              |
 | `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default_rust)`. If this cli is the newest declared, also re-points `:latest`. Aliases are intentionally moving.                                                                                                                                                                                                                                                                                                                                                   |
 | `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release-body.sh` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                                                                                                                                |
 | `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
 
 ## Tag immutability and restarts
 
-Per-architecture tags (`:<cli>-rust<rust>-<arch>`) and per-pair manifest lists (`:<cli>-rust<rust>`) on Docker Hub are **immutable**. When the publish workflow sees an existing tag, it skips that row with a ⚠️ warning surfaced in the run's Annotations panel and step summary — never overwrites. There is no force flag and no workflow input to override this.
+Per-architecture tags (`:<cli>-rust<key>-<arch>`) and per-pair manifest lists (`:<cli>-rust<key>`) on Docker Hub are **immutable**. When the publish workflow sees an existing tag, it skips that row with a ⚠️ warning surfaced in the run's Annotations panel and step summary — never overwrites. There is no force flag and no workflow input to override this.
 
 Moving aliases (`:<cli>`, `:latest`) are exempt; they're documented as moving and re-pointed each release.
 
@@ -133,12 +133,30 @@ To recover from a failed run, use **Re-run failed jobs** from the GitHub Actions
 
 To genuinely re-publish a content-immutable tag (e.g. recovering from a corrupt push), delete the offending tag in Docker Hub by hand first, then click **Re-run all jobs** on the original publish run. The workflow re-uses the originating release-published event context, so no manual trigger is needed.
 
+## Base image policy
+
+The Rust base image carries one choice we make deliberately: the **Debian codename** (e.g. `bookworm`, `trixie`). It appears in the upstream Rust image tag — `rust:<version>-<debian>` — and we encode it into our own image tag so the choice is visible and stays unique across future switches.
+
+**We always use the non-`slim` upstream image.** The `slim` variant strips `buildpack-deps`, and our builder stage's pruned `apt-get install` line relies on `buildpack-deps` providing `build-essential`, `ca-certificates`, `git`, `libssl-dev`, and `pkg-config`. Switching to `slim` would silently break the builder. The non-`slim` image is also typically faster to pull on consumer hosts because its layers are widely cached.
+
+**Debian codename — track the latest Ubuntu LTS upstream.** Each Ubuntu LTS is based on a Debian release. We default to that Debian. The current latest Ubuntu LTS is 26.04, which is based on Debian 13 (`trixie`), so `trixie` is today's default. We don't move to the newest Debian release the day it ships — we wait for the next Ubuntu LTS to track it, so users on the prevailing LTS host distro aren't running on a Debian newer than what their host's upstream tracks.
+
+**Tag — include the Debian codename.** The composite rust base key (e.g. `1.94.0-trixie`) flows verbatim into the published image tag: `<cli>-rust<key>[-arch]`. When we eventually move off `trixie`, the new images get a new tag suffix and the historical `trixie` tags stay addressable.
+
+### Switching the default Debian
+
+1. Update the keys in `builds.json`: rename `rust_image_digests` keys (and the matching `rust_versions[]` / `default_rust` entries) to the new `<rust>-<debian>` shape, then run `./scripts/refresh-rust-digests.sh` to fill them in against the new upstream tag.
+2. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
+3. Open a PR as usual; the publish flow then produces tags with the new suffix automatically.
+
+The `Dockerfile` itself doesn't need editing — its `FROM` lines reference the image by digest only, and the Debian codename shows up in labels (`org.opencontainers.image.base.name`, `org.stellar.rust-base-suffix`) via a build-arg passed from the matrix.
+
 ## Bumping a pinned base or ref
 
 Pinned values in `builds.json` are intentional. Bumping them changes the bytes of published images and invalidates anything that already referenced the prior digest, so it's a deliberate action.
 
 ```sh
-./scripts/refresh-rust-digests.sh --rust-version 1.94.0
+./scripts/refresh-rust-digests.sh --rust-version 1.94.0-trixie
 ./scripts/refresh-stellar-cli-digests.sh --stellar-cli-version 26.1.0
 ```
 
@@ -150,7 +168,7 @@ After a release publish succeeds, sanity-check the attestations:
 
 ```sh
 # Extract a per-arch digest:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0-rust1.94.0-amd64
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0-rust1.94.0-trixie-amd64
 
 # Verify both attestation chains in one command:
 ./scripts/verify-image.sh --image docker.io/stellar/stellar-cli@sha256:<digest>

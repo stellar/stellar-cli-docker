@@ -6,8 +6,10 @@ Also compatible as a [SEP-58](https://github.com/stellar/stellar-protocol/blob/m
 
 Each image:
 
-- Pins its Debian base via the official `rust:<version>-slim-bookworm`
-  multi-arch index digest.
+- Pins its Debian base via the official `rust:<version>-<debian>` multi-arch
+  index digest. The current default Debian is `trixie`; see
+  [`RELEASE.md` → Base image policy](./RELEASE.md#base-image-policy) for
+  how it's chosen.
 - Pins the Rust toolchain via `RUSTUP_TOOLCHAIN`, baked in so an in-source
   `rust-toolchain.toml` cannot silently swap it.
 - Pins `stellar-cli` to a specific upstream commit, installed with
@@ -37,7 +39,7 @@ list digest:
 
 ```sh
 # Find the per-arch digest for the architecture you used to build:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0-rust1.94.0
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0-rust1.94.0-trixie
 ```
 
 Record the per-arch digest in your contract's `bldimg` metadata. A verifier
@@ -53,7 +55,7 @@ compare the resulting WASM sha256.
 | `builds.schema.json`                     | JSON Schema for `builds.json`.                                                                                                                                                |
 | `scripts/build-image.sh`                 | Local single-image build.                                                                                                                                                     |
 | `scripts/validate-json.sh`               | Validates every `*.json` for sorted keys and `builds.json` for schema + cross-field constraints.                                                                              |
-| `scripts/refresh-rust-digests.sh`        | Fills blank `rust_image_digests` entries by inspecting `rust:<v>-slim-bookworm` upstream. Does not touch already-pinned digests unless asked per-version.                     |
+| `scripts/refresh-rust-digests.sh`        | Fills blank `rust_image_digests` entries by inspecting `rust:<key>` upstream (where `<key>` is the composite `<rust>-<debian>` form). Does not touch already-pinned digests unless asked per-key.                     |
 | `scripts/refresh-stellar-cli-digests.sh` | Fills blank `stellar_cli_versions[].ref` entries by resolving the matching `v<version>` git tag in `stellar/stellar-cli`. Same per-target opt-in shape as the rust refresher. |
 | `scripts/verify-image.sh`                | Consumer-facing verifier. Wraps `gh attestation verify` for both the SLSA build provenance and the SPDX SBOM attestations against a per-arch image digest.                    |
 | `scripts/lib/common.sh`                  | Shared helpers sourced by the other scripts.                                                                                                                                  |
@@ -64,12 +66,12 @@ compare the resulting WASM sha256.
 # Validate builds.json.
 ./scripts/validate-json.sh
 
-# Build a local image for a declared (cli, rust) pair.
-./scripts/build-image.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0
+# Build a local image for a declared (cli, rust base) pair.
+./scripts/build-image.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-trixie
 
 # Smoke-test the built image.
-docker run --rm stellar-cli:26.0.0-rust1.94.0 --version
-docker run --rm stellar-cli:26.0.0-rust1.94.0 contract build --help
+docker run --rm stellar-cli:26.0.0-rust1.94.0-trixie --version
+docker run --rm stellar-cli:26.0.0-rust1.94.0-trixie contract build --help
 
 # Resolve blank rust base image digests (maintainer task).
 ./scripts/refresh-rust-digests.sh --dry-run
