@@ -36,8 +36,7 @@ Checks:
   1. `stellar version --only-version` equals --stellar-cli-version.
   2. `stellar contract build --help` exits 0 (no network).
   3. Labels org.opencontainers.image.version, .revision, .base.name,
-     .base.digest, plus org.stellar.rust-version, .rust-base-suffix,
-     and .wasm-target match expectations. The base.digest is
+     and .base.digest match expectations. The base.digest is
      cross-checked against the value pinned for this rust base key
      in builds.json — so a build that quietly used a different
      upstream digest would be caught here.
@@ -108,7 +107,7 @@ check_contract_build_help() {
 
 check_labels() {
   local image="$1" cli="$2" stellar_ref="$3" rust_version="$4" rust_base_suffix="$5" rust_image_digest="$6"
-  log "checking OCI + org.stellar.* labels ..."
+  log "checking OCI image labels ..."
 
   local labels
   labels="$(docker inspect --format '{{json .Config.Labels}}' "$image")"
@@ -120,9 +119,6 @@ check_labels() {
   assert_label "$labels" "org.opencontainers.image.revision" "$stellar_ref" || rc=1
   assert_label "$labels" "org.opencontainers.image.base.name" "$expected_base_name" || rc=1
   assert_label "$labels" "org.opencontainers.image.base.digest" "$rust_image_digest" || rc=1
-  assert_label "$labels" "org.stellar.rust-version" "$rust_version" || rc=1
-  assert_label "$labels" "org.stellar.rust-base-suffix" "$rust_base_suffix" || rc=1
-  assert_label "$labels" "org.stellar.wasm-target" "wasm32v1-none" || rc=1
   if [ "$rc" -eq 0 ]; then
     log "  ok"
   fi

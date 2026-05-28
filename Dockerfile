@@ -18,7 +18,6 @@ ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
-ARG BUILDS_JSON_SHA
 ARG SOURCE_REPO
 
 FROM rust@${RUST_IMAGE_DIGEST} AS builder
@@ -59,9 +58,7 @@ ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
-ARG BUILDS_JSON_SHA
 ARG SOURCE_REPO
-ARG TARGETARCH
 
 # RUSTUP_TOOLCHAIN is baked in so an in-source `rust-toolchain.toml` in a
 # consumer's contract can't silently swap our pinned toolchain at build
@@ -100,9 +97,4 @@ LABEL org.opencontainers.image.title="stellar-cli" \
       org.opencontainers.image.revision="${STELLAR_CLI_REV}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.base.name="docker.io/library/rust:${RUST_VERSION}-${RUST_BASE_SUFFIX}" \
-      org.opencontainers.image.base.digest="${RUST_IMAGE_DIGEST}" \
-      org.stellar.rust-version="${RUST_VERSION}" \
-      org.stellar.rust-base-suffix="${RUST_BASE_SUFFIX}" \
-      org.stellar.wasm-target="wasm32v1-none" \
-      org.stellar.build-arch="${TARGETARCH}" \
-      org.stellar.builds-json-sha="${BUILDS_JSON_SHA}"
+      org.opencontainers.image.base.digest="${RUST_IMAGE_DIGEST}"

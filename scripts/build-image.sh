@@ -47,7 +47,7 @@ main() {
   test -n "$cli"      || { err "--stellar-cli-version is required"; usage; exit 1; }
   test -n "$rust_key" || { err "--rust-version is required"; usage; exit 1; }
 
-  preflight_checks jq buildx sha256
+  preflight_checks jq buildx
 
   assert_pair_declared "$cli" "$rust_key"
 
@@ -61,9 +61,8 @@ main() {
     tag="stellar-cli:${cli}-rust${rust_key}"
   fi
 
-  local build_date builds_json_sha
+  local build_date
   build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  builds_json_sha="$(sha256_of "$BUILDS_JSON_PATH")"
 
   log "building $tag"
   log "  stellar-cli $cli         ($stellar_ref)"
@@ -85,7 +84,6 @@ main() {
     --build-arg "STELLAR_CLI_REV=$stellar_ref" \
     --build-arg "STELLAR_CLI_VERSION=$cli" \
     --build-arg "BUILD_DATE=$build_date" \
-    --build-arg "BUILDS_JSON_SHA=$builds_json_sha" \
     --build-arg "SOURCE_REPO=$source_repo" \
     --tag "$tag" \
     "$(repo_root)"
