@@ -34,12 +34,14 @@ docker run --rm -v "$PWD:/source" docker.io/stellar/stellar-cli:latest contract 
 ## Verifiable builds ([SEP-58](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0058.md))
 
 For verifiable references, **always pin to a per-arch single-architecture
-digest**, never to a moving tag like `:latest` or to a multi-arch manifest
-list digest:
+digest**, never to a moving tag like `:latest` or `:<cli>`, and never to a
+multi-arch manifest list digest:
 
 ```sh
-# Find the per-arch digest for the architecture you used to build:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0-rust1.94.0-slim-trixie
+# Find the per-arch digest for the architecture you used to build.
+# Pick any of the immutable manifest-list tags from the release notes,
+# e.g. :26.0.0-<ref>-rust1.94.0-slim-trixie, or the :26.0.0 alias:
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0
 ```
 
 Record the per-arch digest in your contract's `bldimg` metadata. A verifier

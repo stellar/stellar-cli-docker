@@ -6,10 +6,9 @@ This document covers the maintainer side of `stellar/stellar-cli-docker` — how
 
 Each release publishes to `docker.io/stellar/stellar-cli`:
 
-- **Per-architecture images** — `:<cli>-rust<rust>-amd64` and `:<cli>-rust<rust>-arm64`. Each one is a single-architecture manifest with its own SHA-256 digest; this is the form a consumer cites in a SEP-58 `bldimg` field.
-- **Multi-arch manifest list** per `(cli, rust)` pair — `:<cli>-rust<rust>` resolves to the right per-arch image at pull time.
-- **Ref-pinned multi-arch manifest list** per `(cli, rust)` pair — `:<cli>-<ref>-rust<rust>`, where `<ref>` is the upstream `stellar/stellar-cli` git SHA the image was built from. Same content as the plain list, useful for callers that want the upstream commit visible in the tag itself.
-- **Convenience aliases** — `:<cli>` points at the manifest list for that cli paired with its `default_rust`. `:latest` points at the newest declared cli's default-rust manifest list. **Aliases must never be used in `bldimg`** — they move.
+- **Per-architecture images** — `:<cli>-<ref>-rust<rust>-amd64` and `:<cli>-<ref>-rust<rust>-arm64`, where `<ref>` is the upstream `stellar/stellar-cli` git SHA the image was built from. Each one is a single-architecture manifest with its own SHA-256 digest; this is the form a consumer cites in a SEP-58 `bldimg` field.
+- **Multi-arch manifest list** per `(cli, rust)` pair — `:<cli>-<ref>-rust<rust>` resolves to the right per-arch image at pull time.
+- **Moving tags** — `:<cli>` points at the manifest list for that cli paired with its `default_rust` at the time of publish. `:latest` points at the newest declared cli's default-rust manifest list. **Moving tags must never be used in `bldimg`** — they re-point on every publish.
 - **Two attestation chains** — buildx-native (SLSA build provenance + SPDX SBOM attached in the registry alongside the image) and GitHub-native (the same predicates signed and stored in the repo's attestation store, verifiable via `gh attestation verify`).
 - **A GitHub Release** for every publish run, with per-architecture digests in the body and the SBOM + provenance files attached as downloadable assets. The release is created by a maintainer following the link in the release PR (see [Releasing](#releasing--new-cli-version-or-refreshing-an-existing-one) below); publishing it triggers the workflow that enriches the release with the images' digests and supply-chain artifacts.
 
@@ -59,7 +58,7 @@ Every release gets a unique tag. Tags are never reused or updated in place.
 
 The `release` workflow picks the next available tag automatically by looking at existing releases. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0` page stays intact when `v26.0.0-1` is later published.
 
-Docker image tags (`:26.0.0-rust1.94.0-slim-trixie-amd64` etc.) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + rust base key + arch. Moving aliases (`:26.0.0`, `:latest`) re-point on every publish, regardless of which iteration.
+Docker image tags (`:<cli>-<ref>-rust<key>[-<arch>]`) are unaffected by the `-N` suffix — they remain pinned forever based on the cli + ref + rust base key + arch. Moving tags (`:<cli>`, `:latest`) re-point on every publish, regardless of which iteration.
 
 ## Releasing — new cli version, or refreshing an existing one
 
@@ -119,14 +118,14 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust base key, arch)` rows for that one cli.                                                                                                                                                                     |
 | `build` (matrix) | Native runner per arch (`ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64). Checks if the per-arch tag exists in the registry: **already-published pairs are skipped with a ⚠️ warning**; only their metadata (digest from the registry) is uploaded as an artifact. Fresh pairs build + push via `docker/build-push-action` with `provenance: mode=max` and `sbom: true`, then attest with `actions/attest-build-provenance` and `actions/attest-sbom`. Either way, the workflow artifacts feed the `release` job. |
-| `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<key>` per rust base key, plus a ref-pinned alias `:<cli>-<ref>-rust<key>` pointing at the same per-arch images. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                       |
-| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default_rust)`. If this cli is the newest declared, also re-points `:latest`. Aliases are intentionally moving.                                                                                                                                                                                                                                                                                                                                                   |
+| `manifest`       | Assembles the ref-pinned multi-arch manifest list `:<cli>-<ref>-rust<key>` per rust base key. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                                                                                            |
+| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default_rust)` at the time of publish. If this cli is the newest declared, also re-points `:latest`. Both tags are intentionally moving.                                                                                                                                                                                                                                                                                                                          |
 | `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release-body.sh` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                                                                                                                                |
 | `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
 
 ## Tag immutability and restarts
 
-Per-architecture tags (`:<cli>-rust<key>-<arch>`), per-pair manifest lists (`:<cli>-rust<key>`), and ref-pinned manifest lists (`:<cli>-<ref>-rust<key>`) on Docker Hub are **immutable**. When the publish workflow sees an existing tag, it skips that row with a ⚠️ warning surfaced in the run's Annotations panel and step summary — never overwrites. There is no force flag and no workflow input to override this.
+Per-architecture tags (`:<cli>-<ref>-rust<key>-<arch>`) and per-pair manifest lists (`:<cli>-<ref>-rust<key>`) on Docker Hub are **immutable**. When the publish workflow sees an existing tag, it skips that row with a ⚠️ warning surfaced in the run's Annotations panel and step summary — never overwrites. There is no force flag and no workflow input to override this.
 
 Moving aliases (`:<cli>`, `:latest`) are exempt; they're documented as moving and re-pointed each release.
 
@@ -142,7 +141,7 @@ The Rust base image carries two choices we make deliberately: the **variant** (`
 
 **Debian codename — track the latest Ubuntu LTS upstream.** Each Ubuntu LTS is based on a Debian release. We default to that Debian. The current latest Ubuntu LTS is 26.04, which is based on Debian 13 (`trixie`), so `trixie` is today's default. We don't move to the newest Debian release the day it ships — we wait for the next Ubuntu LTS to track it, so users on the prevailing LTS host distro aren't running on a Debian newer than what their host's upstream tracks.
 
-**Tag — include variant + Debian.** The composite rust base key (e.g. `1.94.0-slim-trixie`) flows verbatim into the published image tag: `<cli>-rust<key>[-arch]`. When we eventually move off `trixie`, the new images get a new tag suffix and the historical tags stay addressable.
+**Tag — include variant + Debian.** The composite rust base key (e.g. `1.94.0-slim-trixie`) flows verbatim into the published image tag: `<cli>-<ref>-rust<key>[-arch]`. When we eventually move off `trixie`, the new images get a new tag suffix and the historical tags stay addressable.
 
 ### Switching the default
 
@@ -170,7 +169,7 @@ After a release publish succeeds, sanity-check the attestations:
 
 ```sh
 # Extract a per-arch digest:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0-rust1.94.0-slim-trixie-amd64
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0
 
 # Verify both attestation chains in one command:
 ./scripts/verify-image.sh --image docker.io/stellar/stellar-cli@sha256:<digest>
