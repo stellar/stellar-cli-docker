@@ -54,7 +54,7 @@ jobs:
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   build:
-    name: ${{ matrix.stellar_cli_version }} rust${{ matrix.rust_version }} ${{ matrix.arch }}
+    name: ${{ matrix.stellar_cli_version }} rust${{ matrix.rust_base_key }} ${{ matrix.arch }}
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -72,7 +72,7 @@ jobs:
         run: |
           tag="$(./scripts/tag-names.sh \
             --stellar-cli-version ${{ matrix.stellar_cli_version }} \
-            --rust-version ${{ matrix.rust_version }} \
+            --rust-version ${{ matrix.rust_base_key }} \
             --platform ${{ matrix.platform }})"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "image=$REGISTRY:$tag" >> "$GITHUB_OUTPUT"
@@ -122,6 +122,7 @@ jobs:
           sbom: true
           build-args: |
             RUST_VERSION=${{ matrix.rust_version }}
+            RUST_BASE_SUFFIX=${{ matrix.rust_base_suffix }}
             RUST_IMAGE_DIGEST=${{ matrix.rust_image_digest }}
             STELLAR_CLI_REV=${{ matrix.stellar_cli_ref }}
             STELLAR_CLI_VERSION=${{ matrix.stellar_cli_version }}
@@ -135,7 +136,7 @@ jobs:
         with:
           image: ${{ steps.tag.outputs.image }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.spdx.json
+          output-file: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.spdx.json
           upload-release-assets: false
           upload-artifact: false
 
@@ -158,28 +159,29 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.spdx.json
+          sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.spdx.json
           push-to-registry: true
 
       - name: write per-arch metadata
         if: steps.skip.outputs.skipped != 'true'
         run: |
-          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.json"
+          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json"
           jq -n \
             --arg arch "${{ matrix.arch }}" \
             --arg cli "${{ matrix.stellar_cli_version }}" \
             --arg digest "${{ steps.build.outputs.digest }}" \
             --arg image "${{ steps.tag.outputs.image }}" \
-            --arg rust "${{ matrix.rust_version }}" \
+            --arg rust_base_key "${{ matrix.rust_base_key }}" \
+            --arg rust_version "${{ matrix.rust_version }}" \
             --arg tag "${{ steps.tag.outputs.tag }}" \
-            '{arch: $arch, digest: $digest, image: $image, rust_version: $rust, stellar_cli_version: $cli, tag: $tag}' \
+            '{arch: $arch, digest: $digest, image: $image, rust_base_key: $rust_base_key, rust_version: $rust_version, stellar_cli_version: $cli, tag: $tag}' \
             > "$out"
 
       - name: rename provenance bundle
         if: steps.skip.outputs.skipped != 'true'
         run: |
           cp "${{ steps.attest-prov.outputs.bundle-path }}" \
-            "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.intoto.jsonl"
+            "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.intoto.jsonl"
 
       # Skipped pairs still need metadata so the release-body composer can
       # show the full state of every declared pair, not just the freshly
@@ -193,21 +195,22 @@ jobs:
           existing_digest="$(docker buildx imagetools inspect \
             "${{ steps.tag.outputs.image }}" \
             --format '{{.Manifest.Digest}}')"
-          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}.json"
+          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json"
           jq -n \
             --arg arch "${{ matrix.arch }}" \
             --arg cli "${{ matrix.stellar_cli_version }}" \
             --arg digest "$existing_digest" \
             --arg image "${{ steps.tag.outputs.image }}" \
-            --arg rust "${{ matrix.rust_version }}" \
+            --arg rust_base_key "${{ matrix.rust_base_key }}" \
+            --arg rust_version "${{ matrix.rust_version }}" \
             --arg tag "${{ steps.tag.outputs.tag }}" \
-            '{arch: $arch, digest: $digest, image: $image, rust_version: $rust, stellar_cli_version: $cli, tag: $tag}' \
+            '{arch: $arch, digest: $digest, image: $image, rust_base_key: $rust_base_key, rust_version: $rust_version, stellar_cli_version: $cli, tag: $tag}' \
             > "$out"
 
       - name: upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_version }}-${{ matrix.arch }}
+          name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}
           path: |
             sbom-*.spdx.json
             prov-*.intoto.jsonl
@@ -233,16 +236,16 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: create manifest list per (cli, rust) pair
+      - name: create manifest list per (cli, rust base) pair
         run: |
-          while IFS= read -r rust; do
+          while IFS= read -r key; do
             list_tag="$(./scripts/tag-names.sh \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$rust")"
+              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key")"
             amd64_tag="$(./scripts/tag-names.sh \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$rust" \
+              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
               --platform linux/amd64)"
             arm64_tag="$(./scripts/tag-names.sh \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$rust" \
+              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
               --platform linux/arm64)"
             if docker buildx imagetools inspect "$REGISTRY:$list_tag" >/dev/null 2>&1; then
               echo "::warning::manifest list $REGISTRY:$list_tag already exists; skipping (lists are immutable)"
