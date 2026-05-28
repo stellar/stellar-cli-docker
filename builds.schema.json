@@ -15,8 +15,8 @@
       "type": "string"
     },
     "rust_base_key": {
-      "description": "Composite key identifying a Rust base image: rust toolchain version, optional slim variant marker, and Debian codename, joined with dashes. Examples: 1.94.0-trixie (full variant), 1.94.0-slim-trixie (slim variant).",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-slim)?-[a-z][a-z0-9]*$",
+      "description": "Composite key identifying a Rust base image: rust toolchain version and Debian codename, joined with a dash. Example: 1.94.0-trixie.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[a-z][a-z0-9]*$",
       "type": "string"
     },
     "semver": {
@@ -36,7 +36,7 @@
       "additionalProperties": {
         "$ref": "#/definitions/image_digest"
       },
-      "description": "Map from rust base key (rust version + optional slim + Debian codename) to the pinned multi-arch index digest of the corresponding rust:<key> upstream image.",
+      "description": "Map from rust base key (rust version + Debian codename, joined with a dash) to the pinned multi-arch index digest of the corresponding rust:<key> upstream image.",
       "minProperties": 1,
       "propertyNames": {
         "$ref": "#/definitions/rust_base_key"

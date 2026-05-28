@@ -10,10 +10,10 @@
 #   multi-arch list:    <cli>-rust<key>
 #   per-arch:           <cli>-rust<key>-<arch>
 #
-# where <key> is the composite rust base key (e.g. 1.94.0-trixie or
-# 1.94.0-slim-trixie). Output: exactly one tag on stdout, with no
-# registry/repo prefix. Callers prepend `docker.io/stellar/stellar-cli:`
-# (or whatever) as needed.
+# where <key> is the composite rust base key (e.g. 1.94.0-trixie).
+# Output: exactly one tag on stdout, with no registry/repo prefix.
+# Callers prepend `docker.io/stellar/stellar-cli:` (or whatever) as
+# needed.
 
 source scripts/lib/common.sh
 
@@ -25,7 +25,6 @@ Usage: scripts/tag-names.sh --stellar-cli-version <v> --rust-version <key> \
 Required:
   --stellar-cli-version <v>   e.g. 26.0.0
   --rust-version <key>        composite rust base key, e.g. 1.94.0-trixie
-                              or 1.94.0-slim-trixie
 
 Options:
   --platform <p>              linux/amd64 or linux/arm64 (Rust tier-1 only).

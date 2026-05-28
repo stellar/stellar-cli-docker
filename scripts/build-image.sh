@@ -11,9 +11,9 @@ Usage: scripts/build-image.sh --stellar-cli-version <v> --rust-version <key> [op
 
 Required:
   --stellar-cli-version <v>    e.g. 26.0.0; must be declared in builds.json
-  --rust-version <key>         composite rust base key, e.g. 1.94.0-trixie
-                               or 1.94.0-slim-trixie; must appear in that
-                               cli entry's rust_versions array
+  --rust-version <key>         composite rust base key, e.g. 1.94.0-trixie;
+                               must appear in that cli entry's
+                               rust_versions array
 
 Options:
   --platform <p>               linux/amd64 or linux/arm64. Defaults to the

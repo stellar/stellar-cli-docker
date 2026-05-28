@@ -7,8 +7,7 @@
 #
 # Each rust_image_digests key is the composite base key the upstream tag
 # carries — e.g. 1.94.0-trixie maps to rust:1.94.0-trixie. The script
-# uses the key verbatim as the upstream tag to inspect, so adding a slim
-# entry like 1.94.0-slim-trixie just works.
+# uses the key verbatim as the upstream tag to inspect.
 #
 # Output stays sorted because the script edits the existing
 # rust_image_digests map (already alphabetical) without changing keys.
@@ -32,7 +31,7 @@ first if you want this script to fill it in.
 Options:
   --rust-version <key>  Resolve this rust base key specifically, even if
                         it already has a pinned digest. The key is the
-                        composite <rust>[-slim]-<debian> form (e.g.
+                        composite <rust>-<debian> form (e.g.
                         1.94.0-trixie). Must already be a key in
                         builds.json's rust_image_digests.
   --dry-run             Print the resolved digests but do not write back.

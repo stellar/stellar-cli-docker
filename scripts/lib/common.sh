@@ -117,8 +117,7 @@ builds_json() {
 }
 
 # Resolve the rust image digest for a given rust base key. Dies if unknown.
-# A rust base key is the composite <rust>[-slim]-<debian> form, e.g.
-# 1.94.0-trixie or 1.94.0-slim-trixie.
+# A rust base key is the composite <rust>-<debian> form, e.g. 1.94.0-trixie.
 rust_image_digest_for() {
   local rust_key="$1"
   local digest
@@ -147,22 +146,21 @@ assert_pair_declared() {
 }
 
 # Extract the bare rust toolchain version from a composite base key.
-# 1.94.0-trixie         -> 1.94.0
-# 1.94.0-slim-trixie    -> 1.94.0
+# 1.94.0-trixie -> 1.94.0
 rust_version_from_key() {
   local key="$1"
   [[ "$key" =~ ^([0-9]+\.[0-9]+\.[0-9]+)- ]] \
-    || die "invalid rust base key: $key (expected <version>-[slim-]<debian>)"
+    || die "invalid rust base key: $key (expected <version>-<debian>)"
   printf '%s' "${BASH_REMATCH[1]}"
 }
 
-# Extract the variant + Debian suffix from a composite base key. This is
-# the trailing part used by the upstream Rust image tag, e.g. `trixie`
-# or `slim-trixie`. It is metadata only — labels and tag construction
-# consume it; FROM lines never do.
+# Extract the Debian codename suffix from a composite base key. This is
+# the trailing part used by the upstream Rust image tag, e.g. `trixie`.
+# It is metadata only — labels and tag construction consume it; FROM
+# lines never do.
 rust_base_suffix_from_key() {
   local key="$1"
   [[ "$key" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(.+)$ ]] \
-    || die "invalid rust base key: $key (expected <version>-[slim-]<debian>)"
+    || die "invalid rust base key: $key (expected <version>-<debian>)"
   printf '%s' "${BASH_REMATCH[1]}"
 }

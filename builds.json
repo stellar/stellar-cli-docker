@@ -1,5 +1,5 @@
 {
-  "$comment": "Source of truth for which (stellar-cli, rust base) pairs we publish. Each stellar-cli release declares its own rust_versions[] at publish time; we do not cross-product. A rust base key joins the rust toolchain version, optional slim variant marker, and Debian codename with dashes (e.g. 1.94.0-trixie, 1.94.0-slim-trixie); see RELEASE.md '## Base image policy' for how the variant + Debian default is chosen. To refresh a rust_image_digest, capture the multi-arch INDEX digest via: docker buildx imagetools inspect rust:<key> --format '{{.Manifest.Digest}}'.",
+  "$comment": "Source of truth for which (stellar-cli, rust base) pairs we publish. Each stellar-cli release declares its own rust_versions[] at publish time; we do not cross-product. A rust base key joins the rust toolchain version and Debian codename with a dash (e.g. 1.94.0-trixie); see RELEASE.md '## Base image policy' for how the Debian default is chosen. To refresh a rust_image_digest, capture the multi-arch INDEX digest via: docker buildx imagetools inspect rust:<key> --format '{{.Manifest.Digest}}'.",
   "$schema": "./builds.schema.json",
   "rust_image_digests": {
     "1.90.0-trixie": "sha256:e227f20ec42af3ea9a3c9c1dd1b2012aa15f12279b5e9d5fb890ca1c2bb5726c",
