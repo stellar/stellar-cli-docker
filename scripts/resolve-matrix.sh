@@ -18,8 +18,8 @@ Usage: scripts/resolve-matrix.sh [--stellar-cli-version <v>] [--compact|--pretty
 Prints {"include": [...]} on stdout. Each include entry has:
   arch                  amd64 | arm64
   platform              linux/amd64 | linux/arm64
-  rust_base_key         composite key, e.g. 1.94.0-trixie
-  rust_base_suffix      variant+debian portion, e.g. trixie
+  rust_base_key         composite key, e.g. 1.94.0-slim-trixie
+  rust_base_suffix      variant+debian portion, e.g. slim-trixie
   rust_image_digest     sha256:... (pinned base image digest)
   rust_version          bare rust toolchain version, e.g. 1.94.0
   stellar_cli_ref       40-char git SHA from stellar/stellar-cli

@@ -150,7 +150,7 @@ The Rust base image carries two choices we make deliberately: the **variant** (`
 3. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
 4. Open a PR as usual; the publish flow then produces tags with the new suffix automatically.
 
-The `Dockerfile`'s `FROM` lines reference the image by digest only; the variant + Debian codename show up in labels (`org.opencontainers.image.base.name`, `org.stellar.rust-base-suffix`) via a build-arg passed from the matrix.
+The `Dockerfile`'s `FROM` lines reference the image by digest only; the variant + Debian codename show up in `org.opencontainers.image.base.name` (e.g. `docker.io/library/rust:1.95.0-slim-trixie`) via a build-arg passed from the matrix.
 
 ## Bumping a pinned base or ref
 
