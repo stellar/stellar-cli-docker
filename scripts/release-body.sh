@@ -115,27 +115,24 @@ emit_body() {
     rust_rows="$(jq -c --arg k "$key" 'map(select(.rust_base_key == $k)) | .[]' <<<"$rows")"
 
     while IFS= read -r row; do
-      printf -- '- `%s@%s`\n' \
-        "$(jq -r '.image' <<<"$row")" \
+      printf -- '- `linux/%s`: `%s@%s`\n' \
+        "$(jq -r '.arch' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
 
     printf '\nVerify:\n\n```sh\n'
 
-    # gh attestation verify — verifies all attestation chains attached
-    # to the image (SLSA provenance + SPDX SBOM in our case).
     while IFS= read -r row; do
       printf 'gh attestation verify oci://%s@%s --repo %s\n' \
-        "$(jq -r '.image' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")" \
         "$repo"
     done <<<"$rust_rows"
 
-    # cosign verify-attestation — registry-attached SLSA v1.0 provenance.
-    # The certificate flags anchor trust to this repo's GitHub Actions
+    # cosign's certificate flags anchor trust to this repo's GitHub Actions
     # OIDC identity (the workflow that ran actions/attest-build-provenance);
-    # without them cosign accepts any valid Sigstore signature, which is
-    # not what we want. Pass `--type spdxjson` to verify the SBOM instead.
+    # without them cosign accepts any valid Sigstore signature.
     printf '\n'
     while IFS= read -r row; do
       printf 'cosign verify-attestation \\\n'
@@ -143,16 +140,14 @@ emit_body() {
       printf '  --certificate-identity-regexp "https://github.com/%s/\\.github/workflows/.*" \\\n' "$repo"
       printf '  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n'
       printf '  %s@%s\n' \
-        "$(jq -r '.image' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
 
-    # docker buildx imagetools inspect — manifest + attached attestation
-    # metadata (no signature verification, just inspection).
     printf '\n'
     while IFS= read -r row; do
       printf 'docker buildx imagetools inspect %s@%s\n' \
-        "$(jq -r '.image' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
 
