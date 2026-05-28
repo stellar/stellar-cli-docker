@@ -36,8 +36,12 @@ Checks:
   1. `stellar version --only-version` equals --stellar-cli-version.
   2. `stellar contract build --help` exits 0 (no network).
   3. Labels org.stellar.stellar-cli-version, org.stellar.rust-version,
-     org.stellar.rust-base-suffix, org.stellar.wasm-target, and
-     org.opencontainers.image.base.name match expectations.
+     org.stellar.rust-base-suffix, org.stellar.wasm-target,
+     org.opencontainers.image.base.name, and
+     org.opencontainers.image.base.digest match expectations. The
+     base.digest is cross-checked against the value pinned for this
+     rust base key in builds.json — so a build that quietly used a
+     different upstream digest would be caught here.
 EOF
 }
 
@@ -60,14 +64,15 @@ main() {
 
   preflight_checks jq buildx
 
-  local rust_version rust_base_suffix
+  local rust_version rust_base_suffix rust_image_digest
   rust_version="$(rust_version_from_key "$rust_key")"
   rust_base_suffix="$(rust_base_suffix_from_key "$rust_key")"
+  rust_image_digest="$(rust_image_digest_for "$rust_key")"
 
   local rc=0
   check_version_output "$image" "$cli" || rc=1
   check_contract_build_help "$image"   || rc=1
-  check_labels "$image" "$cli" "$rust_version" "$rust_base_suffix" || rc=1
+  check_labels "$image" "$cli" "$rust_version" "$rust_base_suffix" "$rust_image_digest" || rc=1
 
   if [ "$rc" -eq 0 ]; then
     log "smoke-test: image $image passed all checks"
@@ -102,7 +107,7 @@ check_contract_build_help() {
 }
 
 check_labels() {
-  local image="$1" cli="$2" rust_version="$3" rust_base_suffix="$4"
+  local image="$1" cli="$2" rust_version="$3" rust_base_suffix="$4" rust_image_digest="$5"
   log "checking OCI + org.stellar.* labels ..."
 
   local labels
@@ -114,8 +119,10 @@ check_labels() {
   assert_label "$labels" "org.stellar.stellar-cli-version" "$cli" || rc=1
   assert_label "$labels" "org.stellar.rust-version" "$rust_version" || rc=1
   assert_label "$labels" "org.stellar.rust-base-suffix" "$rust_base_suffix" || rc=1
+  assert_label "$labels" "org.stellar.rust-image-digest" "$rust_image_digest" || rc=1
   assert_label "$labels" "org.stellar.wasm-target" "wasm32v1-none" || rc=1
   assert_label "$labels" "org.opencontainers.image.base.name" "$expected_base_name" || rc=1
+  assert_label "$labels" "org.opencontainers.image.base.digest" "$rust_image_digest" || rc=1
   if [ "$rc" -eq 0 ]; then
     log "  ok"
   fi
