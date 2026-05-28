@@ -91,14 +91,17 @@ emit_body() {
 
   printf 'Stellar CLI image (SEP-58-compatible image for Stellar smart contracts).\n\n'
 
-  printf '## Convenience tags\n\n'
-  printf -- '- `%s:%s` — multi-arch, default Rust for this release\n' "$registry" "$cli"
+  printf '## Tags\n\n'
+  printf 'Moving tags (re-pointed on each publish; do not use for SEP-58 `bldimg`):\n\n'
+  printf -- '- `%s:latest` — newest declared cli, default Rust\n' "$registry"
+  printf -- '- `%s:%s` — this cli, default Rust\n' "$registry" "$cli"
   local key ref
   ref="$(stellar_cli_ref_for "$cli")"
+  printf '\nImmutable, pinned to stellar-cli `%s`:\n\n' "$ref"
   while IFS= read -r key; do
-    printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$key"
-    printf -- '- `%s:%s-%s-rust%s` — multi-arch, ref-pinned to stellar-cli `%s`\n' \
-      "$registry" "$cli" "$ref" "$key" "$ref"
+    printf -- '- `%s:%s-%s-rust%s` — multi-arch\n' "$registry" "$cli" "$ref" "$key"
+    printf -- '- `%s:%s-%s-rust%s-amd64`\n' "$registry" "$cli" "$ref" "$key"
+    printf -- '- `%s:%s-%s-rust%s-arm64`\n' "$registry" "$cli" "$ref" "$key"
   done < <(jq -r '
     map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
     | unique_by(.key)
@@ -167,6 +170,8 @@ Each per-architecture image carries two independent attestation chains — SLSA 
 - `gh attestation verify` — checks every attestation chain in one call (recommended).
 - `cosign verify-attestation` — registry-attached verification with explicit certificate identity + OIDC issuer flags so trust is anchored to this repo's workflows, not just "any valid Sigstore signature".
 - `docker buildx imagetools inspect` — manifest + attached attestation metadata, useful for inspection (not signature verification).
+
+Verification requires a per-architecture reference (digest or per-arch tag). Verifying against `:latest`, `:<cli>`, or the multi-arch list tag fails because those resolve to the manifest list digest, which isn't what the per-arch attestations were signed against.
 
 ## Assets
 
