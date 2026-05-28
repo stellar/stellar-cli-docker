@@ -73,7 +73,8 @@ jobs:
           tag="$(./scripts/tag-names.sh \
             --stellar-cli-version ${{ matrix.stellar_cli_version }} \
             --rust-version ${{ matrix.rust_base_key }} \
-            --platform ${{ matrix.platform }})"
+            --platform ${{ matrix.platform }} \
+            --stellar-cli-ref ${{ matrix.stellar_cli_ref }})"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "image=$REGISTRY:$tag" >> "$GITHUB_OUTPUT"
 
@@ -232,7 +233,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: create manifest lists per (cli, rust base) pair
+      - name: create manifest list per (cli, rust base) pair
         run: |
           stellar_cli_ref="$(jq -r --arg v "$STELLAR_CLI_VERSION" \
             '.stellar_cli_versions[] | select(.version == $v) | .ref' builds.json \
@@ -240,34 +241,32 @@ jobs:
           test -n "$stellar_cli_ref" \
             || { echo "::error::no stellar_cli_versions entry for $STELLAR_CLI_VERSION"; exit 1; }
           while IFS= read -r key; do
-            amd64_tag="$(./scripts/tag-names.sh \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
-              --platform linux/amd64)"
-            arm64_tag="$(./scripts/tag-names.sh \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
-              --platform linux/arm64)"
-            plain_tag="$(./scripts/tag-names.sh \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key")"
-            hash_tag="$(./scripts/tag-names.sh \
+            list_tag="$(./scripts/tag-names.sh \
               --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
               --stellar-cli-ref "$stellar_cli_ref")"
-            for list_tag in "$plain_tag" "$hash_tag"; do
-              if docker buildx imagetools inspect "$REGISTRY:$list_tag" >/dev/null 2>&1; then
-                echo "::warning::manifest list $REGISTRY:$list_tag already exists; skipping (lists are immutable)"
-                {
-                  echo "## ⚠️ Manifest list skipped — already published"
-                  echo ""
-                  echo "\`$REGISTRY:$list_tag\` was already in the registry."
-                } >> "$GITHUB_STEP_SUMMARY"
-                continue
-              fi
-              echo "::group::manifest $REGISTRY:$list_tag"
-              docker buildx imagetools create \
-                --tag "$REGISTRY:$list_tag" \
-                "$REGISTRY:$amd64_tag" \
-                "$REGISTRY:$arm64_tag"
-              echo "::endgroup::"
-            done
+            amd64_tag="$(./scripts/tag-names.sh \
+              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
+              --platform linux/amd64 \
+              --stellar-cli-ref "$stellar_cli_ref")"
+            arm64_tag="$(./scripts/tag-names.sh \
+              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
+              --platform linux/arm64 \
+              --stellar-cli-ref "$stellar_cli_ref")"
+            if docker buildx imagetools inspect "$REGISTRY:$list_tag" >/dev/null 2>&1; then
+              echo "::warning::manifest list $REGISTRY:$list_tag already exists; skipping (lists are immutable)"
+              {
+                echo "## ⚠️ Manifest list skipped — already published"
+                echo ""
+                echo "\`$REGISTRY:$list_tag\` was already in the registry."
+              } >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            echo "::group::manifest $REGISTRY:$list_tag"
+            docker buildx imagetools create \
+              --tag "$REGISTRY:$list_tag" \
+              "$REGISTRY:$amd64_tag" \
+              "$REGISTRY:$arm64_tag"
+            echo "::endgroup::"
           done < <(jq -r --arg v "$STELLAR_CLI_VERSION" '
             .stellar_cli_versions[]
             | select(.version == $v)
@@ -295,9 +294,13 @@ jobs:
           default_rust="$(jq -r --arg v "$STELLAR_CLI_VERSION" \
             '.stellar_cli_versions[] | select(.version == $v) | .default_rust' \
             builds.json | head -n1)"
+          stellar_cli_ref="$(jq -r --arg v "$STELLAR_CLI_VERSION" \
+            '.stellar_cli_versions[] | select(.version == $v) | .ref' builds.json \
+            | head -n1)"
           target_tag="$(./scripts/tag-names.sh \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
-            --rust-version "$default_rust")"
+            --rust-version "$default_rust" \
+            --stellar-cli-ref "$stellar_cli_ref")"
           target="$REGISTRY:$target_tag"
 
           echo "::group::alias $REGISTRY:$STELLAR_CLI_VERSION -> $target"
