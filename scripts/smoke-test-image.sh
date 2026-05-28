@@ -13,16 +13,21 @@ usage() {
 Usage: scripts/smoke-test-image.sh \
          --image <ref> \
          --stellar-cli-version <v> \
-         --rust-version <v> \
+         --rust-version <key> \
          [--help]
 
 Required:
-  --image <ref>                Image to test (e.g. stellar-cli:26.0.0-rust1.94.0
-                               or a registry digest). Must already be present
+  --image <ref>                Image to test (e.g.
+                               stellar-cli:26.0.0-rust1.94.0-trixie or a
+                               registry digest). Must already be present
                                in the local docker daemon.
-  --stellar-cli-version <v>    The stellar-cli version the image should report
-                               and label with.
-  --rust-version <v>           The rust version the image should label with.
+  --stellar-cli-version <v>    The stellar-cli version the image should
+                               report and label with.
+  --rust-version <key>         The composite rust base key the image was
+                               built for, e.g. 1.94.0-trixie. The bare
+                               rust version and the variant+debian suffix
+                               are parsed out and checked against labels
+                               separately.
 
 Options:
   --help                       Show this message.
@@ -31,33 +36,38 @@ Checks:
   1. `stellar version --only-version` equals --stellar-cli-version.
   2. `stellar contract build --help` exits 0 (no network).
   3. Labels org.stellar.stellar-cli-version, org.stellar.rust-version,
-     and org.stellar.wasm-target match expectations.
+     org.stellar.rust-base-suffix, org.stellar.wasm-target, and
+     org.opencontainers.image.base.name match expectations.
 EOF
 }
 
 main() {
-  local image="" cli="" rust=""
+  local image="" cli="" rust_key=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --image)               require_value "$1" "${2:-}"; image="$2"; shift 2;;
       --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
-      --rust-version)        require_value "$1" "${2:-}"; rust="$2"; shift 2;;
+      --rust-version)        require_value "$1" "${2:-}"; rust_key="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
   done
 
-  test -n "$image" || { err "--image is required"; usage; exit 1; }
-  test -n "$cli"   || { err "--stellar-cli-version is required"; usage; exit 1; }
-  test -n "$rust"  || { err "--rust-version is required"; usage; exit 1; }
+  test -n "$image"    || { err "--image is required"; usage; exit 1; }
+  test -n "$cli"      || { err "--stellar-cli-version is required"; usage; exit 1; }
+  test -n "$rust_key" || { err "--rust-version is required"; usage; exit 1; }
 
   preflight_checks jq buildx
+
+  local rust_version rust_base_suffix
+  rust_version="$(rust_version_from_key "$rust_key")"
+  rust_base_suffix="$(rust_base_suffix_from_key "$rust_key")"
 
   local rc=0
   check_version_output "$image" "$cli" || rc=1
   check_contract_build_help "$image"   || rc=1
-  check_labels "$image" "$cli" "$rust" || rc=1
+  check_labels "$image" "$cli" "$rust_version" "$rust_base_suffix" || rc=1
 
   if [ "$rc" -eq 0 ]; then
     log "smoke-test: image $image passed all checks"
@@ -92,16 +102,20 @@ check_contract_build_help() {
 }
 
 check_labels() {
-  local image="$1" cli="$2" rust="$3"
-  log "checking org.stellar.* labels ..."
+  local image="$1" cli="$2" rust_version="$3" rust_base_suffix="$4"
+  log "checking OCI + org.stellar.* labels ..."
 
   local labels
   labels="$(docker inspect --format '{{json .Config.Labels}}' "$image")"
 
+  local expected_base_name="docker.io/library/rust:${rust_version}-${rust_base_suffix}"
+
   local rc=0
   assert_label "$labels" "org.stellar.stellar-cli-version" "$cli" || rc=1
-  assert_label "$labels" "org.stellar.rust-version" "$rust" || rc=1
+  assert_label "$labels" "org.stellar.rust-version" "$rust_version" || rc=1
+  assert_label "$labels" "org.stellar.rust-base-suffix" "$rust_base_suffix" || rc=1
   assert_label "$labels" "org.stellar.wasm-target" "wasm32v1-none" || rc=1
+  assert_label "$labels" "org.opencontainers.image.base.name" "$expected_base_name" || rc=1
   if [ "$rc" -eq 0 ]; then
     log "  ok"
   fi

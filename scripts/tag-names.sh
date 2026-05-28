@@ -2,27 +2,30 @@
 # Single source of truth for image tag naming.
 #
 # Given the three ingredients that fully describe an image — stellar-cli
-# version, rust version, optional platform — print the canonical tag for
+# version, rust base key, optional platform — print the canonical tag for
 # that image. Callers (build, publish, smoke-test, docs) go through this
 # script so tag construction stays consistent across the repo.
 #
 # Tag scheme:
-#   multi-arch list:    <cli>-rust<rust>
-#   per-arch:           <cli>-rust<rust>-<arch>
+#   multi-arch list:    <cli>-rust<key>
+#   per-arch:           <cli>-rust<key>-<arch>
 #
-# Output: exactly one tag on stdout, with no registry/repo prefix. Callers
-# prepend `docker.io/stellar/stellar-cli:` (or whatever) as needed.
+# where <key> is the composite rust base key (e.g. 1.94.0-trixie or
+# 1.94.0-slim-trixie). Output: exactly one tag on stdout, with no
+# registry/repo prefix. Callers prepend `docker.io/stellar/stellar-cli:`
+# (or whatever) as needed.
 
 source scripts/lib/common.sh
 
 usage() {
   cat <<'EOF'
-Usage: scripts/tag-names.sh --stellar-cli-version <v> --rust-version <v> \
+Usage: scripts/tag-names.sh --stellar-cli-version <v> --rust-version <key> \
                             [--platform <p>] [--help]
 
 Required:
   --stellar-cli-version <v>   e.g. 26.0.0
-  --rust-version <v>          e.g. 1.94.0
+  --rust-version <key>        composite rust base key, e.g. 1.94.0-trixie
+                              or 1.94.0-slim-trixie
 
 Options:
   --platform <p>              linux/amd64 or linux/arm64 (Rust tier-1 only).
@@ -32,34 +35,34 @@ Options:
   --help                      Show this message.
 
 Example:
-  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0
-  26.0.0-rust1.94.0
-  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0 \
+  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-trixie
+  26.0.0-rust1.94.0-trixie
+  $ scripts/tag-names.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-trixie \
       --platform linux/amd64
-  26.0.0-rust1.94.0-amd64
+  26.0.0-rust1.94.0-trixie-amd64
 EOF
 }
 
 main() {
-  local cli="" rust="" platform=""
+  local cli="" rust_key="" platform=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --stellar-cli-version) require_value "$1" "${2:-}"; cli="$2"; shift 2;;
-      --rust-version)        require_value "$1" "${2:-}"; rust="$2"; shift 2;;
+      --rust-version)        require_value "$1" "${2:-}"; rust_key="$2"; shift 2;;
       --platform)            require_value "$1" "${2:-}"; platform="$2"; shift 2;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
   done
 
-  test -n "$cli"  || { err "--stellar-cli-version is required"; usage; exit 1; }
-  test -n "$rust" || { err "--rust-version is required"; usage; exit 1; }
+  test -n "$cli"      || { err "--stellar-cli-version is required"; usage; exit 1; }
+  test -n "$rust_key" || { err "--rust-version is required"; usage; exit 1; }
 
   # shellcheck disable=SC2119  # no required commands beyond bash itself
   preflight_checks
 
-  local tag="${cli}-rust${rust}"
+  local tag="${cli}-rust${rust_key}"
   if [ -n "$platform" ]; then
     tag="${tag}-$(arch_for_platform "$platform")"
   fi

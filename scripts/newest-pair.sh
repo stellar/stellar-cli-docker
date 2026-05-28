@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Prints the newest declared (stellar-cli, rust) pair from builds.json.
+# Prints the newest declared (stellar-cli, rust base key) pair from
+# builds.json.
 #
 # Used by CI to pick a single representative image for the smoke build, and
 # usable interactively when you want to remember what `:latest` resolves to.
@@ -17,8 +18,8 @@ backported entry added out of order cannot displace a higher-semver release.
 
 Options:
   --stellar-cli-version   Print the cli version (e.g. 26.0.0).
-  --rust-version          Print the default rust version for that cli
-                          (e.g. 1.94.0).
+  --rust-version          Print the default rust base key for that cli
+                          (e.g. 1.94.0-trixie).
   --help                  Show this message.
 EOF
 }

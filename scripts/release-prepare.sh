@@ -21,11 +21,15 @@ Required:
                               tag is chosen.
 
 Options:
-  --rust-versions <list>      Comma-separated rust versions to pair with.
+  --rust-versions <list>      Comma-separated composite rust base keys to
+                              pair with, e.g. 1.94.1-trixie,1.95.0-trixie.
                               Default: the last two minor stable rust
                               versions from rust-lang/rust GitHub releases,
-                              at their latest patch each (e.g. 1.94.1,1.95.0).
-                              The last entry in the list becomes default_rust.
+                              at their latest patch each, joined with the
+                              variant+debian suffix carried by the most
+                              recent existing builds.json entry's
+                              default_rust. The last entry in the list
+                              becomes default_rust.
   --help                      Show this message.
 
 Stages builds.json (new entry or refresh), resolves cli ref + rust image
@@ -72,21 +76,25 @@ main() {
   fi
   log "mode: $mode"
 
-  # Always the latest two minor stable rust versions, at their latest patch
-  # each. Maintainers who need different pairings can edit builds.json on
-  # the release branch before merging.
+  # Always the latest two minor stable rust versions, at their latest
+  # patch each, joined with the variant+debian suffix in use today.
+  # Maintainers who need different pairings can edit builds.json on the
+  # release branch before merging.
   local -a rusts=()
   if [ -n "$rust_versions_csv" ]; then
     IFS=',' read -ra rusts <<<"$rust_versions_csv"
-    log "rust versions (from --rust-versions): ${rusts[*]}"
+    log "rust base keys (from --rust-versions): ${rusts[*]}"
   else
     log "picking the last 2 minor stable rust versions from rust-lang/rust ..."
+    local suffix
+    suffix="$(current_rust_base_suffix)"
+    log "appending current rust base suffix: $suffix"
     while IFS= read -r v; do
-      rusts+=("$v")
+      rusts+=("${v}-${suffix}")
     done < <(pick_default_rust_versions)
-    log "rust versions (auto): ${rusts[*]}"
+    log "rust base keys (auto): ${rusts[*]}"
   fi
-  test "${#rusts[@]}" -gt 0 || die "no rust versions selected"
+  test "${#rusts[@]}" -gt 0 || die "no rust base keys selected"
   local default_rust="${rusts[-1]}"
   log "default_rust: $default_rust"
 
@@ -128,6 +136,22 @@ main() {
   # Final stdout line is the chosen release tag, for workflows that need
   # to capture it.
   printf '%s\n' "$release_tag"
+}
+
+# Returns the variant+debian suffix carried by the newest existing entry's
+# default_rust. Dies if builds.json has no entries — in that bootstrap
+# case the maintainer must pass --rust-versions explicitly (with composite
+# keys) so the source of truth stays exclusively in builds.json.
+current_rust_base_suffix() {
+  local newest_default
+  newest_default="$(builds_json '
+    .stellar_cli_versions
+    | sort_by(.version | split(".") | map(tonumber))
+    | .[-1].default_rust // empty
+  ')"
+  test -n "$newest_default" \
+    || die "builds.json has no stellar_cli_versions; pass --rust-versions with composite keys (e.g. 1.94.0-trixie) to seed the first entry"
+  rust_base_suffix_from_key "$newest_default"
 }
 
 # Picks the last two unique minor stable rust versions, at their latest

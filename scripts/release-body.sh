@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Compose the markdown body for a GitHub Release, given a directory of
-# per-arch metadata files (meta-<cli>-rust<rust>-<arch>.json) written by
+# per-arch metadata files (meta-<cli>-rust<key>-<arch>.json) written by
 # the publish workflow's build job.
 #
 # Each metadata file has the shape:
-#   {"arch": "...", "digest": "sha256:...", "image": "...", "rust_version": "...",
+#   {"arch": "...", "digest": "sha256:...", "image": "...",
+#    "rust_base_key": "...", "rust_version": "...",
 #    "stellar_cli_version": "...", "tag": "..."}
+#
+# `rust_version` is the bare toolchain version (e.g. 1.94.0) and
+# `rust_base_key` is the composite (e.g. 1.94.0-trixie). The body sorts
+# rows numerically by bare version and groups them by composite key.
 #
 # Output goes to stdout.
 
@@ -74,7 +79,7 @@ main() {
   done
 
   local rows
-  rows="$(jq -s 'sort_by((.rust_version | split(".") | map(tonumber)), .arch)' "${meta_files[@]}")"
+  rows="$(jq -s 'sort_by((.rust_version | split(".") | map(tonumber)), .rust_base_key, .arch)' "${meta_files[@]}")"
 
   emit_body "$cli" "$rows" "$registry" "$repo"
 }
@@ -88,18 +93,23 @@ emit_body() {
 
   printf '## Convenience tags\n\n'
   printf -- '- `%s:%s` — multi-arch, default Rust for this release\n' "$registry" "$cli"
-  local rust
-  while IFS= read -r rust; do
-    printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$rust"
-  done < <(jq -r 'map(.rust_version) | unique | sort_by(split(".") | map(tonumber)) | .[]' <<<"$rows")
+  local key
+  while IFS= read -r key; do
+    printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$key"
+  done < <(jq -r '
+    map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
+    | unique_by(.key)
+    | sort_by(.ver, .key)
+    | .[].key
+  ' <<<"$rows")
 
   printf '\n## Per-architecture digests (for SEP-58 `bldimg`)\n\n'
   printf 'Use the per-architecture digest when recording `bldimg` in your contract metadata. Never use a moving tag like `:latest` or `:%s`.\n\n' "$cli"
 
   local rust_rows
-  while IFS= read -r rust; do
-    printf '### Rust %s\n\n' "$rust"
-    rust_rows="$(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")"
+  while IFS= read -r key; do
+    printf '### Rust %s\n\n' "$key"
+    rust_rows="$(jq -c --arg k "$key" 'map(select(.rust_base_key == $k)) | .[]' <<<"$rows")"
 
     while IFS= read -r row; do
       printf -- '- `%s@%s`\n' \
@@ -144,7 +154,12 @@ emit_body() {
     done <<<"$rust_rows"
 
     printf '```\n\n'
-  done < <(jq -r 'map(.rust_version) | unique | sort_by(split(".") | map(tonumber)) | .[]' <<<"$rows")
+  done < <(jq -r '
+    map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
+    | unique_by(.key)
+    | sort_by(.ver, .key)
+    | .[].key
+  ' <<<"$rows")
 
   cat <<'EOF'
 ## Verification
