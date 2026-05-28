@@ -15,8 +15,8 @@
       "type": "string"
     },
     "rust_base_key": {
-      "description": "Composite key identifying a Rust base image: rust toolchain version and Debian codename, joined with a dash. Example: 1.94.0-trixie.",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[a-z][a-z0-9]*$",
+      "description": "Composite key identifying a Rust base image: rust toolchain version followed by the upstream rust:<v>-<suffix> tail (Debian codename, optionally prefixed by `slim-`). Example: 1.94.0-slim-trixie.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[a-z][a-z0-9-]*$",
       "type": "string"
     },
     "semver": {
