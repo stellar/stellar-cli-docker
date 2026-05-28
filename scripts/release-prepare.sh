@@ -232,12 +232,15 @@ make_cli_entry() {
   shift 3
   local -a rust_versions=("$@")
 
-  # Sort numerically so 1.100.0 lands AFTER 1.99.0; default jq `sort` on
-  # strings would put "1.100.0" before "1.99.0" lexicographically.
+  # Sort numerically by the bare rust version embedded at the front of
+  # each composite key (e.g. 1.94.1-trixie -> [1, 94, 1]) so 1.100.0-trixie
+  # lands AFTER 1.99.0-trixie; default jq `sort` on strings would put
+  # "1.100.0-..." before "1.99.0-..." lexicographically. Splitting only on
+  # "." would feed "1-trixie" into tonumber and fail.
   local rust_array
   rust_array="$(printf '%s\n' "${rust_versions[@]}" \
     | jq -R . \
-    | jq -s 'sort_by(split(".") | map(tonumber))')"
+    | jq -s 'sort_by(split("-") | .[0] | split(".") | map(tonumber))')"
 
   jq -n \
     --arg default_rust "$default_rust" \
