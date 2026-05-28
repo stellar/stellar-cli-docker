@@ -93,9 +93,12 @@ emit_body() {
 
   printf '## Convenience tags\n\n'
   printf -- '- `%s:%s` — multi-arch, default Rust for this release\n' "$registry" "$cli"
-  local key
+  local key ref
+  ref="$(stellar_cli_ref_for "$cli")"
   while IFS= read -r key; do
     printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$key"
+    printf -- '- `%s:%s-%s-rust%s` — multi-arch, ref-pinned to stellar-cli `%s`\n' \
+      "$registry" "$cli" "$ref" "$key" "$ref"
   done < <(jq -r '
     map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
     | unique_by(.key)
