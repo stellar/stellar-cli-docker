@@ -189,9 +189,13 @@ jobs:
       - name: write per-arch metadata (skipped pair)
         if: steps.skip.outputs.skipped == 'true'
         run: |
+          # `--format '{{.Manifest.Digest}}'` behaves inconsistently across
+          # the amd64 and arm64 runner images (one prints the digest, the
+          # other prints the full verbose dump), so we just parse the
+          # verbose output's "Digest:" line, which is identical on both.
           existing_digest="$(docker buildx imagetools inspect \
             "${{ steps.tag.outputs.image }}" \
-            --format '{{.Manifest.Digest}}')"
+            | awk '/^Digest:/ {print $2; exit}')"
           out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json"
           jq -n \
             --arg arch "${{ matrix.arch }}" \
@@ -291,12 +295,9 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: publish :<cli> and :latest aliases
         run: |
-          default_rust="$(jq -r --arg v "$STELLAR_CLI_VERSION" \
-            '.stellar_cli_versions[] | select(.version == $v) | .default_rust' \
-            builds.json | head -n1)"
-          stellar_cli_ref="$(jq -r --arg v "$STELLAR_CLI_VERSION" \
-            '.stellar_cli_versions[] | select(.version == $v) | .ref' builds.json \
-            | head -n1)"
+          source scripts/lib/common.sh
+          default_rust="$(derive_default_rust_for_cli "$STELLAR_CLI_VERSION")"
+          stellar_cli_ref="$(stellar_cli_ref_for "$STELLAR_CLI_VERSION")"
           target_tag="$(./scripts/tag-names.sh \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --rust-version "$default_rust" \

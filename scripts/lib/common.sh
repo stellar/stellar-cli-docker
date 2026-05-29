@@ -145,6 +145,32 @@ assert_pair_declared() {
     || die "stellar-cli $cli is not declared with rust base key $rust_key in builds.json"
 }
 
+# Resolve the default rust base key for a stellar-cli release: the
+# highest-version key in that cli's rust_versions[] whose suffix matches
+# the global default_distro (composed as slim-<default_distro> since the
+# project standardises on slim variants — see project_slim_base_for_sbom_limit).
+# Dies on missing default_distro, unknown cli, or no matching key.
+derive_default_rust_for_cli() {
+  local cli="$1"
+  local distro
+  distro="$(builds_json '.default_distro // empty')"
+  test -n "$distro" || die "builds.json is missing default_distro"
+
+  local suffix="slim-$distro"
+  local picked
+  picked="$(builds_json --arg cli "$cli" --arg suffix "$suffix" '
+    .stellar_cli_versions[]
+    | select(.version == $cli)
+    | .rust_versions
+    | map(select(endswith("-" + $suffix)))
+    | sort_by(split("-") | .[0] | split(".") | map(tonumber))
+    | last // empty
+  ')"
+  test -n "$picked" \
+    || die "no rust_versions[] key matches default_distro '$distro' (suffix '$suffix') for stellar-cli $cli"
+  printf '%s' "$picked"
+}
+
 # Extract the bare rust toolchain version from a composite base key.
 # 1.94.0-trixie -> 1.94.0
 rust_version_from_key() {
