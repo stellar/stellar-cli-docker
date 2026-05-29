@@ -321,7 +321,7 @@ jobs:
           docker buildx imagetools create --tag "$REGISTRY:$STELLAR_CLI_VERSION" "$target"
           echo "::endgroup::"
 
-          newest_cli="$(./scripts/newest-pair.sh --stellar-cli-version)"
+          newest_cli="$(./scripts/newest_pair.py --stellar-cli-version)"
           if [ "$STELLAR_CLI_VERSION" = "$newest_cli" ]; then
             echo "::group::alias $REGISTRY:latest -> $target"
             docker buildx imagetools create --tag "$REGISTRY:latest" "$target"

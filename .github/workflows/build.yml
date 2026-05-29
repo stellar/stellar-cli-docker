@@ -28,8 +28,8 @@ jobs:
       - name: resolve newest pair
         id: pair
         run: |
-          cli="$(./scripts/newest-pair.sh --stellar-cli-version)"
-          rust="$(./scripts/newest-pair.sh --rust-version)"
+          cli="$(./scripts/newest_pair.py --stellar-cli-version)"
+          rust="$(./scripts/newest_pair.py --rust-version)"
           tag="$(./scripts/tag_names.py \
             --stellar-cli-version "$cli" --rust-version "$rust")"
           {
