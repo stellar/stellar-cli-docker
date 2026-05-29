@@ -1,0 +1,11 @@
+{
+  "count": 4,
+  "results": [
+    {"name": "1.93.0-slim-trixie"},
+    {"name": "1.94.0-slim-trixie"},
+    {"name": "1.94.1-slim-trixie"},
+    {"name": "1.95.0-slim-trixie"},
+    {"name": "1.94.0-slim-bookworm"},
+    {"name": "1.94.0-trixie"}
+  ]
+}

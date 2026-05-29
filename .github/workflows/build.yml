@@ -21,12 +21,16 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: resolve newest pair
         id: pair
         run: |
-          cli="$(./scripts/newest-pair.sh --stellar-cli-version)"
-          rust="$(./scripts/newest-pair.sh --rust-version)"
-          tag="$(./scripts/tag-names.sh \
+          cli="$(./scripts/newest_pair.py --stellar-cli-version)"
+          rust="$(./scripts/newest_pair.py --rust-version)"
+          tag="$(./scripts/tag_names.py \
             --stellar-cli-version "$cli" --rust-version "$rust")"
           {
             echo "cli=$cli"
@@ -35,18 +39,18 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: build image
         run: |
-          ./scripts/build-image.sh \
+          ./scripts/build_image.py \
             --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
             --rust-version "${{ steps.pair.outputs.rust }}"
       - name: smoke test
         run: |
-          ./scripts/smoke-test-image.sh \
+          ./scripts/smoke_test_image.py \
             --image "${{ steps.pair.outputs.image }}" \
             --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
             --rust-version "${{ steps.pair.outputs.rust }}"
       - name: wasm reproducibility
         run: |
-          ./scripts/repro-test.sh \
+          ./scripts/repro_test.py \
             --image "${{ steps.pair.outputs.image }}"
 
   complete:
