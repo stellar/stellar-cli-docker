@@ -93,7 +93,7 @@ If you'd rather run the prepare step yourself (e.g. to debug an auto-pick that's
 ```sh
 ./scripts/release-prepare.sh --stellar-cli-version 26.1.0
 # Optional: pin specific rust base keys instead of the auto-pick
-./scripts/release-prepare.sh --stellar-cli-version 26.1.0 \
+./scripts/release_prepare.py --stellar-cli-version 26.1.0 \
   --rust-versions 1.94.0-slim-trixie,1.95.0-slim-trixie
 ```
 
