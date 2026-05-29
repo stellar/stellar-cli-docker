@@ -49,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
-        run: ./scripts/release-push-branch.sh --release-tag "$RELEASE_TAG"
+        run: ./scripts/release_push_branch.py --release-tag "$RELEASE_TAG"
 
       - name: open pull request
         env:
