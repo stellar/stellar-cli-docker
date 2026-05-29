@@ -55,7 +55,7 @@ compare the resulting WASM sha256.
 | `Dockerfile`                             | Two-stage builder + runtime, args-driven.                                                                                                                                                         |
 | `builds.json`                            | Source of truth for which (stellar-cli, rust base key) pairs we publish.                                                                                                                          |
 | `builds.schema.json`                     | JSON Schema for `builds.json`.                                                                                                                                                                    |
-| `scripts/build-image.sh`                 | Local single-image build.                                                                                                                                                                         |
+| `scripts/build_image.py`                 | Local single-image build.                                                                                                                                                                         |
 | `scripts/validate_json.py`               | Validates every `*.json` for sorted keys and `builds.json` for schema + cross-field constraints.                                                                                                  |
 | `scripts/refresh-rust-digests.sh`        | Fills blank `rust_image_digests` entries by inspecting `rust:<key>` upstream (where `<key>` is the composite `<rust>-<suffix>` form). Does not touch already-pinned digests unless asked per-key. |
 | `scripts/refresh-stellar-cli-digests.sh` | Fills blank `stellar_cli_versions[].ref` entries by resolving the matching `v<version>` git tag in `stellar/stellar-cli`. Same per-target opt-in shape as the rust refresher.                     |
@@ -69,7 +69,7 @@ compare the resulting WASM sha256.
 ./scripts/validate_json.py
 
 # Build a local image for a declared (cli, rust base) pair.
-./scripts/build-image.sh --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie
+./scripts/build_image.py --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie
 
 # Smoke-test the built image.
 docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie --version

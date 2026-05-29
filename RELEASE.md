@@ -103,7 +103,7 @@ The script prints the chosen release tag as its final stdout line. Commit and pu
 
 ```sh
 ./scripts/validate_json.py
-./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
+./scripts/build_image.py --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
 ./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0-slim-trixie \
   --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
 ./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0-slim-trixie
