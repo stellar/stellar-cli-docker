@@ -64,6 +64,19 @@ jobs:
       - name: resolve and validate matrix
         run: ./scripts/resolve-matrix.sh | jq -e '.include | length > 0' >/dev/null
 
+  tests:
+    name: pytest
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+      - name: run pytest
+        run: uv run pytest
+
   complete:
     if: always()
     needs:
@@ -72,6 +85,7 @@ jobs:
       - shellcheck
       - shell
       - matrix-smoke
+      - tests
     runs-on: ubuntu-24.04
     steps:
       - name: check upstream jobs
