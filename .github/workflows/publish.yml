@@ -67,10 +67,15 @@ jobs:
       - name: set up buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
       - name: resolve tag
         id: tag
         run: |
-          tag="$(./scripts/tag-names.sh \
+          tag="$(./scripts/tag_names.py \
             --stellar-cli-version ${{ matrix.stellar_cli_version }} \
             --rust-version ${{ matrix.rust_base_key }} \
             --platform ${{ matrix.platform }} \
@@ -232,6 +237,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: set up buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: login to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
@@ -245,14 +254,14 @@ jobs:
           test -n "$stellar_cli_ref" \
             || { echo "::error::no stellar_cli_versions entry for $STELLAR_CLI_VERSION"; exit 1; }
           while IFS= read -r key; do
-            list_tag="$(./scripts/tag-names.sh \
+            list_tag="$(./scripts/tag_names.py \
               --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
               --stellar-cli-ref "$stellar_cli_ref")"
-            amd64_tag="$(./scripts/tag-names.sh \
+            amd64_tag="$(./scripts/tag_names.py \
               --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
               --platform linux/amd64 \
               --stellar-cli-ref "$stellar_cli_ref")"
-            arm64_tag="$(./scripts/tag-names.sh \
+            arm64_tag="$(./scripts/tag_names.py \
               --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
               --platform linux/arm64 \
               --stellar-cli-ref "$stellar_cli_ref")"
@@ -288,6 +297,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: set up buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: login to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
@@ -298,7 +311,7 @@ jobs:
           source scripts/lib/common.sh
           default_rust="$(derive_default_rust_for_cli "$STELLAR_CLI_VERSION")"
           stellar_cli_ref="$(stellar_cli_ref_for "$STELLAR_CLI_VERSION")"
-          target_tag="$(./scripts/tag-names.sh \
+          target_tag="$(./scripts/tag_names.py \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --rust-version "$default_rust" \
             --stellar-cli-ref "$stellar_cli_ref")"
