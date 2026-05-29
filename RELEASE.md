@@ -106,7 +106,7 @@ The script prints the chosen release tag as its final stdout line. Commit and pu
 ./scripts/build_image.py --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
 ./scripts/smoke_test_image.py --image stellar-cli:26.1.0-rust1.95.0-slim-trixie \
   --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
-./scripts/repro-test.sh --image stellar-cli:26.1.0-rust1.95.0-slim-trixie
+./scripts/repro_test.py --image stellar-cli:26.1.0-rust1.95.0-slim-trixie
 ```
 
 The smoke test confirms the binary reports the expected version and the labels are correct. The repro test confirms `stellar contract build --locked` produces byte-identical WASM across two clean builds. CI does the same against the freshly-built image on every PR push.

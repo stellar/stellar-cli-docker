@@ -50,7 +50,7 @@ jobs:
             --rust-version "${{ steps.pair.outputs.rust }}"
       - name: wasm reproducibility
         run: |
-          ./scripts/repro-test.sh \
+          ./scripts/repro_test.py \
             --image "${{ steps.pair.outputs.image }}"
 
   complete:
