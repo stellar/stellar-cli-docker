@@ -51,8 +51,8 @@ def test_preflight_sha256_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_preflight_routes_literal_tokens_to_require_cmd(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, ...]] = []
     monkeypatch.setattr(common, "require_cmd", lambda *args: calls.append(args))
-    common.preflight_checks(["jq", "git"])
-    assert calls == [("jq", "git")]
+    common.preflight_checks(["docker", "git"])
+    assert calls == [("docker", "git")]
 
 
 def test_preflight_routes_buildx_token(monkeypatch: pytest.MonkeyPatch) -> None:

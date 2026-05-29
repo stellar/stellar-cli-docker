@@ -82,7 +82,7 @@ docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie contract build --help
 ./scripts/refresh_stellar_cli_digests.py --dry-run
 ```
 
-Requirements: `docker` (with `buildx`), `jq`, [`uv`](https://docs.astral.sh/uv/).
+Requirements: `docker` (with `buildx`) and [`uv`](https://docs.astral.sh/uv/).
 
 ## Releasing
 

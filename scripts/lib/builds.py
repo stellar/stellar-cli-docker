@@ -1,9 +1,9 @@
 """Read, write, and query builds.json.
 
-The on-disk format mirrors `jq --sort-keys . builds.json`: keys sorted
-at every level, 2-space indent, trailing newline. Writes go through
-`dump()` which writes to a tempfile in the same directory and then
-`os.replace()`s into place so a partially-written file never lands.
+On-disk format: keys sorted at every level, 2-space indent, trailing
+newline. Writes go through `dump()` which writes to a tempfile in the
+same directory and then `os.replace()`s into place so a partially-
+written file never lands.
 """
 
 import json

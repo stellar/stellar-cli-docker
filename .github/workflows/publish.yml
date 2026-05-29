@@ -169,17 +169,15 @@ jobs:
       - name: write per-arch metadata
         if: steps.skip.outputs.skipped != 'true'
         run: |
-          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json"
-          jq -n \
-            --arg arch "${{ matrix.arch }}" \
-            --arg cli "${{ matrix.stellar_cli_version }}" \
-            --arg digest "${{ steps.build.outputs.digest }}" \
-            --arg image "${{ steps.tag.outputs.image }}" \
-            --arg rust_base_key "${{ matrix.rust_base_key }}" \
-            --arg rust_version "${{ matrix.rust_version }}" \
-            --arg tag "${{ steps.tag.outputs.tag }}" \
-            '{arch: $arch, digest: $digest, image: $image, rust_base_key: $rust_base_key, rust_version: $rust_version, stellar_cli_version: $cli, tag: $tag}' \
-            > "$out"
+          ./scripts/write_metadata.py \
+            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json" \
+            --arch "${{ matrix.arch }}" \
+            --stellar-cli-version "${{ matrix.stellar_cli_version }}" \
+            --digest "${{ steps.build.outputs.digest }}" \
+            --image "${{ steps.tag.outputs.image }}" \
+            --rust-base-key "${{ matrix.rust_base_key }}" \
+            --rust-version "${{ matrix.rust_version }}" \
+            --tag "${{ steps.tag.outputs.tag }}"
 
       - name: rename provenance bundle
         if: steps.skip.outputs.skipped != 'true'
@@ -189,31 +187,21 @@ jobs:
 
       # Skipped pairs still need metadata so the release-body composer can
       # show the full state of every declared pair, not just the freshly
-      # built ones. Queries the existing tag's manifest digest from the
-      # registry and writes the same meta-*.json shape we'd write on a
-      # fresh build (just without the SBOM/provenance files — those stay
-      # attached to the previously-published image's attestation store).
+      # built ones. Omitting --digest tells write_metadata to resolve it
+      # from the existing tag in the registry; the SBOM/provenance files
+      # are not regenerated (they stay attached to the previously-
+      # published image's attestation store).
       - name: write per-arch metadata (skipped pair)
         if: steps.skip.outputs.skipped == 'true'
         run: |
-          # `--format '{{.Manifest.Digest}}'` behaves inconsistently across
-          # the amd64 and arm64 runner images (one prints the digest, the
-          # other prints the full verbose dump), so we just parse the
-          # verbose output's "Digest:" line, which is identical on both.
-          existing_digest="$(docker buildx imagetools inspect \
-            "${{ steps.tag.outputs.image }}" \
-            | awk '/^Digest:/ {print $2; exit}')"
-          out="meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json"
-          jq -n \
-            --arg arch "${{ matrix.arch }}" \
-            --arg cli "${{ matrix.stellar_cli_version }}" \
-            --arg digest "$existing_digest" \
-            --arg image "${{ steps.tag.outputs.image }}" \
-            --arg rust_base_key "${{ matrix.rust_base_key }}" \
-            --arg rust_version "${{ matrix.rust_version }}" \
-            --arg tag "${{ steps.tag.outputs.tag }}" \
-            '{arch: $arch, digest: $digest, image: $image, rust_base_key: $rust_base_key, rust_version: $rust_version, stellar_cli_version: $cli, tag: $tag}' \
-            > "$out"
+          ./scripts/write_metadata.py \
+            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json" \
+            --arch "${{ matrix.arch }}" \
+            --stellar-cli-version "${{ matrix.stellar_cli_version }}" \
+            --image "${{ steps.tag.outputs.image }}" \
+            --rust-base-key "${{ matrix.rust_base_key }}" \
+            --rust-version "${{ matrix.rust_version }}" \
+            --tag "${{ steps.tag.outputs.tag }}"
 
       - name: upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
