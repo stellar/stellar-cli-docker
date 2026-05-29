@@ -5,6 +5,7 @@ description = "Build and publish scripts for the stellar-cli Docker images."
 requires-python = ">=3.14"
 dependencies = [
     "jsonschema>=4.21",
+    "semver>=3.0.4",
 ]
 
 [dependency-groups]
