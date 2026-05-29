@@ -174,7 +174,7 @@ After a release publish succeeds, sanity-check the attestations:
 docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.1.0
 
 # Verify both attestation chains in one command:
-./scripts/verify-image.sh --image docker.io/stellar/stellar-cli@sha256:<digest>
+./scripts/verify_image.py --image docker.io/stellar/stellar-cli@sha256:<digest>
 ```
 
 Or directly:
