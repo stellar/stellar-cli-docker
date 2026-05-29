@@ -28,6 +28,10 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: install check-jsonschema
         run: pipx install check-jsonschema
       - name: validate builds.json
@@ -49,7 +53,7 @@ jobs:
         env:
           STELLAR_CLI_VERSION: ${{ steps.scope.outputs.version }}
         run: |
-          matrix="$(./scripts/resolve-matrix.sh \
+          matrix="$(./scripts/resolve_matrix.py \
             --stellar-cli-version "$STELLAR_CLI_VERSION")"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
