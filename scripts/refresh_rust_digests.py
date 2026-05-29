@@ -2,8 +2,7 @@
 """Re-resolve each rust_image_digests entry's upstream multi-arch index digest.
 
 Only fills entries whose digest is blank/unpinned; bumping a pinned digest
-must be requested per key via --rust-version. Mirrors the refresh-fills-blanks
-contract from the bash predecessor.
+must be requested per key via --rust-version.
 """
 
 import argparse

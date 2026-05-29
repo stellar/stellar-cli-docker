@@ -1,7 +1,7 @@
 """Logging, exit helpers, and command preflight checks.
 
-Mirrors `scripts/lib/common.sh`: all log output goes to stderr so
-stdout stays reserved for the script's data contract.
+All log output goes to stderr so stdout stays reserved for each
+script's data contract.
 """
 
 import hashlib

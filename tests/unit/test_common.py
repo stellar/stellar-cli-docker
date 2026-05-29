@@ -43,7 +43,7 @@ def test_require_cmd_dies_for_missing(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_preflight_sha256_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
-    # sha256 is a pseudo-token in bash; in Python it's always satisfied by hashlib.
+    # The `sha256` pseudo-token is always satisfied — hashlib is stdlib.
     monkeypatch.setattr(common.shutil, "which", lambda _: None)
     common.preflight_checks(["sha256"])  # no exception
 

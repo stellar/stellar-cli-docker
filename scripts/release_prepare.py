@@ -53,7 +53,7 @@ def pick_default_rust_base_keys(suffix: str) -> list[str]:
         picked.append(key)
         if len(picked) == 2:
             break
-    picked.reverse()  # ascending output to match bash
+    picked.reverse()  # return ascending so callers iterate oldest-to-newest
     return picked
 
 
