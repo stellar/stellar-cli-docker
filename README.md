@@ -33,12 +33,12 @@ docker run --rm -v "$PWD:/source" docker.io/stellar/stellar-cli:latest contract 
 
 The image exposes four well-known paths:
 
-| Path       | What                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------- |
-| `/source`  | `WORKDIR`. Bind-mount your contract here.                                             |
-| `/config`  | `STELLAR_CONFIG_HOME`. Mount to persist network and identity configuration.          |
-| `/data`    | `STELLAR_DATA_HOME`. Mount to persist CLI data.                                       |
-| `/stellar` | Home for user `stellar` (UID 1000). Mount to persist the cargo cache (see below).     |
+| Path       | What                                                                              |
+| ---------- | --------------------------------------------------------------------------------- |
+| `/source`  | `WORKDIR`. Bind-mount your contract here.                                         |
+| `/config`  | `STELLAR_CONFIG_HOME`. Mount to persist network and identity configuration.       |
+| `/data`    | `STELLAR_DATA_HOME`. Mount to persist CLI data.                                   |
+| `/stellar` | Home for user `stellar` (UID 1000). Mount to persist the cargo cache (see below). |
 
 The image runs as user `stellar` (UID 1000) with `/stellar` as the home
 directory. `CARGO_HOME` resolves to `/stellar/.cargo` inside the
