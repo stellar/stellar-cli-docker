@@ -32,10 +32,8 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
-      - name: install check-jsonschema
-        run: pipx install check-jsonschema
       - name: validate builds.json
-        run: ./scripts/validate-json.sh
+        run: ./scripts/validate_json.py
       - name: scope to one cli version
         id: scope
         env:

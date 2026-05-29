@@ -102,7 +102,7 @@ The script prints the chosen release tag as its final stdout line. Commit and pu
 ### Validating locally before pushing
 
 ```sh
-./scripts/validate-json.sh
+./scripts/validate_json.py
 ./scripts/build-image.sh --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
 ./scripts/smoke-test-image.sh --image stellar-cli:26.1.0-rust1.95.0-slim-trixie \
   --stellar-cli-version 26.1.0 --rust-version 1.95.0-slim-trixie
@@ -149,7 +149,7 @@ The Rust base image carries two choices we make deliberately: the **variant** (`
 `default_distro` is the single switch. The picker queries Docker Hub for tags with the `slim-<default_distro>` suffix; the aliases job derives `:<cli>` and `:latest` targets the same way. Historical entries with the old suffix stay in each cli's `rust_versions[]` so the file remains consistent with the immutable tags already in the registry.
 
 1. Edit `builds.json:default_distro` to the new codename (the schema's `enum` lists the supported values).
-2. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
+2. Run `./scripts/validate_json.py` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
 3. Open a PR as usual. On merge, dispatch the `release` workflow against the cli you want to re-target; the picker appends the new-suffix keys to that cli's `rust_versions[]` and the publish flow re-points the moving aliases.
 
 The `Dockerfile`'s `FROM` lines reference the image by digest only; the variant + Debian codename show up in `org.opencontainers.image.base.name` (e.g. `docker.io/library/rust:1.95.0-slim-trixie`) via a build-arg passed from the matrix.

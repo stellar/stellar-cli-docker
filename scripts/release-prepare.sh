@@ -108,7 +108,7 @@ main() {
   scripts/refresh-rust-digests.sh
 
   log "validating builds.json ..."
-  scripts/validate-json.sh
+  scripts/validate_json.py
 
   # If nothing actually changed in builds.json (compared to the snapshot
   # we took at the top of main), there is nothing to release. Happens on a
