@@ -45,9 +45,7 @@ def test_test_one_contract_fails_when_hashes_differ(
     assert "NOT reproducible" in capsys.readouterr().err
 
 
-def test_test_one_contract_missing_dir(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_test_one_contract_missing_dir(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert repro_test.test_one_contract("img", tmp_path, "nope") is False
     assert "no contract directory" in capsys.readouterr().err
 

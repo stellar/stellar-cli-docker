@@ -29,9 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--image", required=True, metavar="REF")
     parser.add_argument("--repo", default=DEFAULT_REPO, metavar="URL")
     parser.add_argument("--rev", default=DEFAULT_REV, metavar="REF")
-    parser.add_argument(
-        "--contract", action="append", default=[], dest="contracts", metavar="NAME"
-    )
+    parser.add_argument("--contract", action="append", default=[], dest="contracts", metavar="NAME")
     parser.add_argument("--keep-workdir", action="store_true")
     return parser
 
