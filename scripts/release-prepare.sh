@@ -102,7 +102,7 @@ main() {
   fi
 
   log "resolving upstream stellar-cli ref ..."
-  scripts/refresh-stellar-cli-digests.sh
+  scripts/refresh_stellar_cli_digests.py
 
   log "resolving rust image digests ..."
   scripts/refresh_rust_digests.py

@@ -160,7 +160,7 @@ Pinned values in `builds.json` are intentional. Bumping them changes the bytes o
 
 ```sh
 ./scripts/refresh_rust_digests.py --rust-version 1.94.0-slim-trixie
-./scripts/refresh-stellar-cli-digests.sh --stellar-cli-version 26.1.0
+./scripts/refresh_stellar_cli_digests.py --stellar-cli-version 26.1.0
 ```
 
 Both target-specific commands skip the blank-only check and re-resolve from upstream. Commit the resulting `builds.json` change and run the release flow as if it were a new release — the immutability guard will refuse to overwrite already-published tags, so you also need to delete those tags from Docker Hub first (or bump the cli version, the cleaner option).
