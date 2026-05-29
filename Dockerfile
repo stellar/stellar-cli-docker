@@ -83,11 +83,19 @@ RUN apt-get update \
         libudev1 \
     && rm -rf /var/lib/apt/lists/*
 RUN rustup target add wasm32v1-none
-COPY --from=builder /out/bin/stellar /usr/local/bin/stellar
-RUN chmod +x /usr/local/bin/stellar
 
-ENV STELLAR_CONFIG_HOME=/config \
-    STELLAR_DATA_HOME=/data
+RUN useradd --create-home --home-dir /stellar --uid 1000 --shell /bin/bash stellar \
+    && mkdir -p /source /config /data \
+    && chown stellar:stellar /source /config /data
+
+COPY --from=builder --chown=root:root --chmod=0755 /out/bin/stellar /usr/local/bin/stellar
+
+ENV CARGO_HOME=/stellar/.cargo \
+    HOME=/stellar \
+    STELLAR_CONFIG_HOME=/config \
+    STELLAR_DATA_HOME=/data \
+    STELLAR_NO_UPDATE_CHECK=1
+USER stellar
 WORKDIR /source
 
 ENTRYPOINT ["stellar"]
