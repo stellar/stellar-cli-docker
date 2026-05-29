@@ -250,43 +250,9 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: create manifest list per (cli, rust base) pair
         run: |
-          stellar_cli_ref="$(jq -r --arg v "$STELLAR_CLI_VERSION" \
-            '.stellar_cli_versions[] | select(.version == $v) | .ref' builds.json \
-            | head -n1)"
-          test -n "$stellar_cli_ref" \
-            || { echo "::error::no stellar_cli_versions entry for $STELLAR_CLI_VERSION"; exit 1; }
-          while IFS= read -r key; do
-            list_tag="$(./scripts/tag_names.py \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
-              --stellar-cli-ref "$stellar_cli_ref")"
-            amd64_tag="$(./scripts/tag_names.py \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
-              --platform linux/amd64 \
-              --stellar-cli-ref "$stellar_cli_ref")"
-            arm64_tag="$(./scripts/tag_names.py \
-              --stellar-cli-version "$STELLAR_CLI_VERSION" --rust-version "$key" \
-              --platform linux/arm64 \
-              --stellar-cli-ref "$stellar_cli_ref")"
-            if docker buildx imagetools inspect "$REGISTRY:$list_tag" >/dev/null 2>&1; then
-              echo "::warning::manifest list $REGISTRY:$list_tag already exists; skipping (lists are immutable)"
-              {
-                echo "## ⚠️ Manifest list skipped — already published"
-                echo ""
-                echo "\`$REGISTRY:$list_tag\` was already in the registry."
-              } >> "$GITHUB_STEP_SUMMARY"
-              continue
-            fi
-            echo "::group::manifest $REGISTRY:$list_tag"
-            docker buildx imagetools create \
-              --tag "$REGISTRY:$list_tag" \
-              "$REGISTRY:$amd64_tag" \
-              "$REGISTRY:$arm64_tag"
-            echo "::endgroup::"
-          done < <(jq -r --arg v "$STELLAR_CLI_VERSION" '
-            .stellar_cli_versions[]
-            | select(.version == $v)
-            | .rust_versions[]
-          ' builds.json)
+          ./scripts/publish_manifests.py \
+            --stellar-cli-version "$STELLAR_CLI_VERSION" \
+            --registry "$REGISTRY"
 
   aliases:
     name: publish moving aliases
