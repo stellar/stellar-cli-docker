@@ -16,20 +16,18 @@ Usage: scripts/release-prepare.sh --stellar-cli-version <v> [--rust-versions <v1
 Required:
   --stellar-cli-version <v>   stellar-cli release version, e.g. 26.0.0.
                               New = added as a fresh entry; existing in
-                              builds.json = refreshed (rust pairings
-                              replaced) and a new GitHub Release iteration
-                              tag is chosen.
+                              builds.json = refreshed (picker output is
+                              appended to rust_versions[]) and a new
+                              GitHub Release iteration tag is chosen.
 
 Options:
   --rust-versions <list>      Comma-separated composite rust base keys to
-                              pair with, e.g. 1.94.1-trixie,1.95.0-trixie.
-                              Default: the last two minor stable rust
-                              versions from rust-lang/rust GitHub releases,
+                              pair with, e.g. 1.94.1-slim-trixie,
+                              1.95.0-slim-trixie. Default: the last two
+                              minor stable rust versions from Docker Hub,
                               at their latest patch each, joined with the
-                              variant+debian suffix carried by the most
-                              recent existing builds.json entry's
-                              default_rust. The last entry in the list
-                              becomes default_rust.
+                              slim-<default_distro> suffix declared at the
+                              top of builds.json.
   --help                      Show this message.
 
 Stages builds.json (new entry or refresh), resolves cli ref + rust image
@@ -95,14 +93,12 @@ main() {
     log "rust base keys (auto): ${rusts[*]}"
   fi
   test "${#rusts[@]}" -gt 0 || die "no rust base keys selected"
-  local default_rust="${rusts[-1]}"
-  log "default_rust: $default_rust"
 
   log "applying changes to $BUILDS_JSON_PATH ..."
   if [ "$mode" = new ]; then
-    add_cli_entry "$cli" "$default_rust" "${rusts[@]}"
+    add_cli_entry "$cli" "${rusts[@]}"
   else
-    replace_cli_entry "$cli" "$default_rust" "${rusts[@]}"
+    extend_cli_entry "$cli" "${rusts[@]}"
   fi
 
   log "resolving upstream stellar-cli ref ..."
@@ -138,20 +134,14 @@ main() {
   printf '%s\n' "$release_tag"
 }
 
-# Returns the variant+debian suffix carried by the newest existing entry's
-# default_rust. Dies if builds.json has no entries — in that bootstrap
-# case the maintainer must pass --rust-versions explicitly (with composite
-# keys) so the source of truth stays exclusively in builds.json.
+# Returns the full upstream rust image suffix (slim-<codename>) declared
+# by builds.json:default_distro. Slim is forced by project policy — see
+# project_slim_base_for_sbom_limit.
 current_rust_base_suffix() {
-  local newest_default
-  newest_default="$(builds_json '
-    .stellar_cli_versions
-    | sort_by(.version | split(".") | map(tonumber))
-    | .[-1].default_rust // empty
-  ')"
-  test -n "$newest_default" \
-    || die "builds.json has no stellar_cli_versions; pass --rust-versions with composite keys (e.g. 1.94.0-trixie) to seed the first entry"
-  rust_base_suffix_from_key "$newest_default"
+  local distro
+  distro="$(builds_json '.default_distro // empty')"
+  test -n "$distro" || die "builds.json is missing default_distro"
+  printf 'slim-%s' "$distro"
 }
 
 # Picks the last two unique minor rust base keys for the given suffix,
@@ -192,12 +182,12 @@ pick_default_rust_base_keys() {
 # Appends a fresh stellar_cli_versions entry (with empty ref). Used for
 # new-cli releases.
 add_cli_entry() {
-  local cli="$1" default_rust="$2"
-  shift 2
+  local cli="$1"
+  shift
   local -a rust_versions=("$@")
 
   local cli_entry stubs
-  cli_entry="$(make_cli_entry "$cli" "$default_rust" "" "${rust_versions[@]}")"
+  cli_entry="$(make_cli_entry "$cli" "" "${rust_versions[@]}")"
   stubs="$(make_digest_stubs "${rust_versions[@]}")"
 
   local tmp
@@ -213,27 +203,37 @@ add_cli_entry() {
   mv "$tmp" "$BUILDS_JSON_PATH"
 }
 
-# Replaces an existing stellar_cli_versions entry's rust_versions and
-# default_rust (and clears ref so refresh-stellar-cli-digests.sh re-resolves
-# it — keeps the workflow idempotent even if the upstream SHA somehow moved).
-# Used for refresh runs.
-replace_cli_entry() {
-  local cli="$1" default_rust="$2"
-  shift 2
-  local -a rust_versions=("$@")
+# Unions new rust base keys into an existing stellar_cli_versions entry's
+# rust_versions[], deduped and sorted numerically. Leaves ref untouched so
+# the refresh stays a blanks-only operation (feedback_refresh_fills_blanks);
+# already-published pairings are retained so builds.json stays consistent
+# with the immutable tags in the registry (project_no_tag_overwrite).
+extend_cli_entry() {
+  local cli="$1"
+  shift
+  local -a new_keys=("$@")
 
-  local cli_entry stubs
-  cli_entry="$(make_cli_entry "$cli" "$default_rust" "" "${rust_versions[@]}")"
-  stubs="$(make_digest_stubs "${rust_versions[@]}")"
+  local new_array merged stubs
+  new_array="$(printf '%s\n' "${new_keys[@]}" | jq -R . | jq -s .)"
+  merged="$(builds_json --arg cli "$cli" --argjson new "$new_array" '
+    .stellar_cli_versions[]
+    | select(.version == $cli)
+    | .rust_versions + $new
+    | unique
+    | sort_by(split("-") | .[0] | split(".") | map(tonumber))
+  ')"
+  stubs="$(make_digest_stubs "${new_keys[@]}")"
 
   local tmp
   tmp="$(mktemp)"
   jq --sort-keys \
     --arg cli "$cli" \
-    --argjson entry "$cli_entry" \
+    --argjson rust_versions "$merged" \
     --argjson stubs "$stubs" \
     '
-      .stellar_cli_versions |= map(if .version == $cli then $entry else . end)
+      .stellar_cli_versions |= map(
+        if .version == $cli then .rust_versions = $rust_versions else . end
+      )
       | .rust_image_digests = ($stubs + .rust_image_digests)
     ' \
     "$BUILDS_JSON_PATH" > "$tmp"
@@ -242,8 +242,8 @@ replace_cli_entry() {
 
 # Builds a single stellar_cli_versions entry as JSON.
 make_cli_entry() {
-  local cli="$1" default_rust="$2" ref="$3"
-  shift 3
+  local cli="$1" ref="$2"
+  shift 2
   local -a rust_versions=("$@")
 
   # Sort numerically by the bare rust version embedded at the front of
@@ -257,11 +257,10 @@ make_cli_entry() {
     | jq -s 'sort_by(split("-") | .[0] | split(".") | map(tonumber))')"
 
   jq -n \
-    --arg default_rust "$default_rust" \
     --argjson rust_versions "$rust_array" \
     --arg ref "$ref" \
     --arg version "$cli" \
-    '{default_rust: $default_rust, ref: $ref, rust_versions: $rust_versions, version: $version}'
+    '{ref: $ref, rust_versions: $rust_versions, version: $version}'
 }
 
 # Builds a JSON object stubbing each rust version to "". Merged INTO
@@ -287,11 +286,15 @@ pick_release_tag() {
     return
   fi
 
+  # grep exits 1 when no iteration tags exist yet (first refresh after the
+  # initial v<cli> release), which inherit_errexit would otherwise turn into
+  # a silent script-wide exit. `|| true` lets max_iter fall back to "" and
+  # the ${max_iter:-0} default below produces v<cli>-1.
   local max_iter
   max_iter="$(grep -E "^v${cli_pat}-[0-9]+\$" <<<"$existing_tags" \
     | sed -E "s/^v${cli_pat}-//" \
     | sort -n \
-    | tail -n1)"
+    | tail -n1 || true)"
 
   printf 'v%s-%d\n' "$cli" "$(( ${max_iter:-0} + 1 ))"
 }

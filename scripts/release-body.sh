@@ -106,6 +106,7 @@ emit_body() {
     map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
     | unique_by(.key)
     | sort_by(.ver, .key)
+    | reverse
     | .[].key
   ' <<<"$rows")
 
@@ -159,6 +160,7 @@ emit_body() {
     map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
     | unique_by(.key)
     | sort_by(.ver, .key)
+    | reverse
     | .[].key
   ' <<<"$rows")
 

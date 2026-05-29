@@ -25,18 +25,18 @@ EOF
 }
 
 main() {
-  local field=""
+  local mode=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --stellar-cli-version) field="version"; shift;;
-      --rust-version)        field="default_rust"; shift;;
+      --stellar-cli-version) mode="cli"; shift;;
+      --rust-version)        mode="rust"; shift;;
       -h|--help)             usage; exit 0;;
       *)                     err "unknown argument: $1"; usage; exit 1;;
     esac
   done
 
-  test -n "$field" \
+  test -n "$mode" \
     || { err "one of --stellar-cli-version or --rust-version is required"; usage; exit 1; }
 
   preflight_checks jq
@@ -45,11 +45,17 @@ main() {
   # 1.99.0 (default jq sort on strings is lexicographic and would invert
   # that), and so an entry added out of order — backport, manual edit —
   # cannot displace a higher-semver release.
-  builds_json --arg f "$field" '
+  local newest_cli
+  newest_cli="$(builds_json '
     .stellar_cli_versions
     | sort_by(.version | split(".") | map(tonumber))
-    | .[-1][$f]
-  '
+    | .[-1].version
+  ')"
+
+  case "$mode" in
+    cli)  printf '%s\n' "$newest_cli";;
+    rust) derive_default_rust_for_cli "$newest_cli"; printf '\n';;
+  esac
 }
 
 main "$@"

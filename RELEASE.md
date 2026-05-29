@@ -8,7 +8,7 @@ Each release publishes to `docker.io/stellar/stellar-cli`:
 
 - **Per-architecture images** — `:<cli>-<ref>-rust<rust>-amd64` and `:<cli>-<ref>-rust<rust>-arm64`, where `<ref>` is the upstream `stellar/stellar-cli` git SHA the image was built from. Each one is a single-architecture manifest with its own SHA-256 digest; this is the form a consumer cites in a SEP-58 `bldimg` field.
 - **Multi-arch manifest list** per `(cli, rust)` pair — `:<cli>-<ref>-rust<rust>` resolves to the right per-arch image at pull time.
-- **Moving tags** — `:<cli>` points at the manifest list for that cli paired with its `default_rust` at the time of publish. `:latest` points at the newest declared cli's default-rust manifest list. **Moving tags must never be used in `bldimg`** — they re-point on every publish.
+- **Moving tags** — `:<cli>` points at the manifest list for that cli paired with the highest `rust_versions[]` key matching the top-level `default_distro`. `:latest` points at the same derivation for the newest declared cli. **Moving tags must never be used in `bldimg`** — they re-point on every publish.
 - **Two attestation chains** — buildx-native (SLSA build provenance + SPDX SBOM attached in the registry alongside the image) and GitHub-native (the same predicates signed and stored in the repo's attestation store, verifiable via `gh attestation verify`).
 - **A GitHub Release** for every publish run, with per-architecture digests in the body and the SBOM + provenance files attached as downloadable assets. The release is created by a maintainer following the link in the release PR (see [Releasing](#releasing--new-cli-version-or-refreshing-an-existing-one) below); publishing it triggers the workflow that enriches the release with the images' digests and supply-chain artifacts.
 
@@ -20,15 +20,15 @@ The workflows expect the following GitHub repository configuration. Settings liv
 
 ### Required secrets
 
-| Secret | Used by | Purpose |
-| --- | --- | --- |
-| `DOCKERHUB_USERNAME` | `publish.yml` | Username for the `docker/login-action` that authenticates pushes to Docker Hub. |
-| `DOCKERHUB_TOKEN` | `publish.yml` | Access token for the same Docker Hub login. Use a scoped access token, not the account password. |
+| Secret               | Used by       | Purpose                                                                                          |
+| -------------------- | ------------- | ------------------------------------------------------------------------------------------------ |
+| `DOCKERHUB_USERNAME` | `publish.yml` | Username for the `docker/login-action` that authenticates pushes to Docker Hub.                  |
+| `DOCKERHUB_TOKEN`    | `publish.yml` | Access token for the same Docker Hub login. Use a scoped access token, not the account password. |
 
 ### Optional variables
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
+| Variable   | Default                         | Purpose                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `REGISTRY` | `docker.io/stellar/stellar-cli` | Registry path to push images to. Override on a fork to publish to a personal registry for testing (e.g. `docker.io/<user>/stellar-cli-experimental`). Threaded through `publish.yml`'s build/manifest/aliases jobs and into `scripts/release-body.sh` so the rendered release body matches whatever registry was published to. |
 
 ### Required workflow permissions
@@ -67,8 +67,8 @@ Same workflow for both. PR review is the gate; a GitHub Release is the publish t
 1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0` for a brand-new release, or `26.0.0` to refresh an already-published cli with the current latest rust pairings). The workflow:
 
    - Detects whether this is a **new release** (cli not yet declared) or a **refresh** (cli exists in `builds.json`).
-   - Picks the last two minor stable rust versions, at their latest patch each, from `rust-lang/rust` GitHub releases. The newer one becomes `default_rust`.
-   - Updates `builds.json`: adds a new entry, or replaces the existing entry's `rust_versions` and `default_rust`. Resolves the upstream cli commit SHA and any missing rust image digests.
+   - Picks the last two minor stable rust versions, at their latest patch each, from Docker Hub's `library/rust` tag list, filtered by the `slim-<default_distro>` suffix.
+   - Updates `builds.json`: adds a new entry, or **appends** the picker output (deduped, numerically sorted) to the existing entry's `rust_versions[]`. Resolves the upstream cli commit SHA and any missing rust image digests.
    - Validates the result.
    - Picks the next available release tag — `v<version>` for a fresh release, `v<version>-<N>` for a refresh.
    - Pushes a `release/<tag>` branch and opens a PR with a body modeled on stellar-cli's release PRs, including a pre-filled link to create the GitHub Release on merge.
@@ -92,8 +92,9 @@ If you'd rather run the prepare step yourself (e.g. to debug an auto-pick that's
 
 ```sh
 ./scripts/release-prepare.sh --stellar-cli-version 26.1.0
-# Optional: pin specific rust versions instead of the auto-pick
-./scripts/release-prepare.sh --stellar-cli-version 26.1.0 --rust-versions 1.93.0,1.94.0
+# Optional: pin specific rust base keys instead of the auto-pick
+./scripts/release-prepare.sh --stellar-cli-version 26.1.0 \
+  --rust-versions 1.94.0-slim-trixie,1.95.0-slim-trixie
 ```
 
 The script prints the chosen release tag as its final stdout line. Commit and push the resulting `builds.json` change yourself, open the PR with that tag, and continue from step 3 above.
@@ -114,14 +115,14 @@ The smoke test confirms the binary reports the expected version and the labels a
 
 Triggered exclusively by the `release: published` event — when a maintainer clicks **Publish release** in the GitHub UI for a `v<version>` tag. There is no manual-dispatch entry point: publishing always goes through a reviewed `builds.json` PR and a GitHub Release page, so accidental ad-hoc publishes are off the table. Each run publishes **exactly one** cli version.
 
-| Job              | What it does                                                                                                                                                                                                                                                                                                                                                                                           |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust base key, arch)` rows for that one cli.                                                                                                                                                                     |
+| Job              | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve-matrix.sh --stellar-cli-version <v>` to produce a matrix of `(rust base key, arch)` rows for that one cli.                                                                                                                                                                                                                                                                              |
 | `build` (matrix) | Native runner per arch (`ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64). Checks if the per-arch tag exists in the registry: **already-published pairs are skipped with a ⚠️ warning**; only their metadata (digest from the registry) is uploaded as an artifact. Fresh pairs build + push via `docker/build-push-action` with `provenance: mode=max` and `sbom: true`, then attest with `actions/attest-build-provenance` and `actions/attest-sbom`. Either way, the workflow artifacts feed the `release` job. |
-| `manifest`       | Assembles the ref-pinned multi-arch manifest list `:<cli>-<ref>-rust<key>` per rust base key. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                                                                                            |
-| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default_rust)` at the time of publish. If this cli is the newest declared, also re-points `:latest`. Both tags are intentionally moving.                                                                                                                                                                                                                                                                                                                          |
-| `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release-body.sh` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                                                                                                                                |
-| `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
+| `manifest`       | Assembles the ref-pinned multi-arch manifest list `:<cli>-<ref>-rust<key>` per rust base key. Existing lists are skipped with a ⚠️ warning; new ones are created via `docker buildx imagetools create`.                                                                                                                                                                                                                                                                                                                  |
+| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, highest rust_versions[] key matching default_distro)`. If this cli is the newest declared, also re-points `:latest`. Both tags are intentionally moving; the job fails loudly if no `rust_versions[]` key matches `default_distro`.                                                                                                                                                                                                                                    |
+| `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release-body.sh` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                                                                                                                                                 |
+| `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ## Tag immutability and restarts
 
@@ -139,16 +140,17 @@ The Rust base image carries two choices we make deliberately: the **variant** (`
 
 **Variant — use the `slim` upstream image.** SPDX JSON SBOMs grow with the file count of the image, not the package count. The buildpack-deps-based base ships the full GNU/Linux build toolchain (gcc, autoconf, make, perl, python, headers, locale data, manpages), pushing the file count into the tens of thousands and producing an SBOM that exceeds the per-file size limit imposed by `actions/attest` — the GitHub-native SBOM attestation step in `publish.yml` then fails. Slim's file count is roughly an order of magnitude smaller, so the SBOM fits. The builder stage installs `build-essential`, `ca-certificates`, `git`, `libssl-dev`, and `pkg-config` explicitly because slim doesn't ship them.
 
-**Debian codename — track the latest Ubuntu LTS upstream.** Each Ubuntu LTS is based on a Debian release. We default to that Debian. The current latest Ubuntu LTS is 26.04, which is based on Debian 13 (`trixie`), so `trixie` is today's default. We don't move to the newest Debian release the day it ships — we wait for the next Ubuntu LTS to track it, so users on the prevailing LTS host distro aren't running on a Debian newer than what their host's upstream tracks.
+**Debian codename — track the latest Ubuntu LTS upstream.** Each Ubuntu LTS is based on a Debian release. We default to that Debian. The current latest Ubuntu LTS is 26.04, which is based on Debian 13 (`trixie`), so `trixie` is today's value of `default_distro`. We don't move to the newest Debian release the day it ships — we wait for the next Ubuntu LTS to track it, so users on the prevailing LTS host distro aren't running on a Debian newer than what their host's upstream tracks.
 
 **Tag — include variant + Debian.** The composite rust base key (e.g. `1.94.0-slim-trixie`) flows verbatim into the published image tag: `<cli>-<ref>-rust<key>[-arch]`. When we eventually move off `trixie`, the new images get a new tag suffix and the historical tags stay addressable.
 
 ### Switching the default
 
-1. Update the keys in `builds.json`: rename `rust_image_digests` keys (and the matching `rust_versions[]` / `default_rust` entries) to the new `<rust>-[slim-]<debian>` shape, then run `./scripts/refresh-rust-digests.sh` to fill them in against the new upstream tag.
-2. If the variant changes, adjust the builder stage's `apt-get install` list in the `Dockerfile` (slim needs `build-essential`, `git`, `libssl-dev`, `pkg-config`, `ca-certificates`; buildpack-deps-based bases ship those, but their SBOM is too large to attest — see above).
-3. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
-4. Open a PR as usual; the publish flow then produces tags with the new suffix automatically.
+`default_distro` is the single switch. The picker queries Docker Hub for tags with the `slim-<default_distro>` suffix; the aliases job derives `:<cli>` and `:latest` targets the same way. Historical entries with the old suffix stay in each cli's `rust_versions[]` so the file remains consistent with the immutable tags already in the registry.
+
+1. Edit `builds.json:default_distro` to the new codename (the schema's `enum` lists the supported values).
+2. Run `./scripts/validate-json.sh` and the local smoke build (see [Validating locally before pushing](#validating-locally-before-pushing)).
+3. Open a PR as usual. On merge, dispatch the `release` workflow against the cli you want to re-target; the picker appends the new-suffix keys to that cli's `rust_versions[]` and the publish flow re-points the moving aliases.
 
 The `Dockerfile`'s `FROM` lines reference the image by digest only; the variant + Debian codename show up in `org.opencontainers.image.base.name` (e.g. `docker.io/library/rust:1.95.0-slim-trixie`) via a build-arg passed from the matrix.
 
@@ -188,6 +190,6 @@ Both attestation chains have the same trust root (the runner's GitHub Actions OI
 
 ## Pairing an already-released cli with a new rust toolchain
 
-Use the same `release` workflow with the existing cli version. The workflow detects the cli is already declared, runs in refresh mode, picks the current last-two-minor rusts, and opens a PR. After merging, create the GH Release pre-filled at `v<cli>-1` (or `-2`, etc.) per the [release tag scheme](#release-tag-scheme). The new rust pair builds; already-published pairs skip with a warning; aliases re-point as needed.
+Use the same `release` workflow with the existing cli version. The workflow detects the cli is already declared, runs in refresh mode, picks the current last-two-minor rusts, and **appends** them to the cli's `rust_versions[]` (existing keys are kept), then opens a PR. After merging, create the GH Release pre-filled at `v<cli>-1` (or `-2`, etc.) per the [release tag scheme](#release-tag-scheme). The new rust pair builds; already-published pairs skip with a warning; aliases re-point as needed.
 
 No friction, no manual tag deletion. The historical `v<cli>` release page stays as a snapshot of the initial publish.

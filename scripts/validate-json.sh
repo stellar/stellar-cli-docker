@@ -3,8 +3,7 @@
 #   1. Object keys are sorted alphabetically at every level.
 #   2. builds.json conforms to builds.schema.json (draft-2020-12).
 #   3. Cross-field constraints in builds.json that JSON Schema can't express
-#      (default_rust must appear in rust_versions; rust_versions entries
-#      must be keys in rust_image_digests).
+#      (rust_versions entries must be keys in rust_image_digests).
 #
 # Exits 0 on success, 1 on any failure. Prints a useful diff on key-order
 # failures.
@@ -119,20 +118,6 @@ check_schema() {
 
 check_cross_field_constraints() {
   local rc=0
-
-  # default_rust must appear in the same entry's rust_versions.
-  local bad_default
-  bad_default="$(builds_json '
-    .stellar_cli_versions[]
-    | . as $e
-    | select($e.rust_versions | index($e.default_rust) | not)
-    | .version')"
-  if [ -n "$bad_default" ]; then
-    while IFS= read -r v; do
-      err "stellar_cli_versions(version=$v).default_rust is not in its rust_versions"
-    done <<<"$bad_default"
-    rc=1
-  fi
 
   # Every rust version referenced by a cli entry must be a key in
   # rust_image_digests.
