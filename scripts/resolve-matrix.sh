@@ -2,10 +2,12 @@
 # Read builds.json and emit a JSON matrix suitable for `fromJson()` in a
 # GitHub Actions workflow. The output drives per-image build jobs.
 #
-# For each stellar_cli_versions[] entry, for each rust in that entry's
-# rust_versions, emits one row per architecture (amd64, arm64). Rows carry
-# the inputs build-image.sh needs plus the precomputed arch suffix for
-# callers that don't want to translate the platform string themselves.
+# For each stellar_cli_versions[] entry, for each rust base key in that
+# entry's rust_versions, emits one row per architecture (amd64, arm64).
+# Rows carry the inputs build-image.sh needs (including the bare rust
+# version and the variant+debian suffix, parsed from the composite key)
+# plus the precomputed arch suffix for callers that don't want to
+# translate the platform string themselves.
 
 source scripts/lib/common.sh
 
@@ -16,8 +18,10 @@ Usage: scripts/resolve-matrix.sh [--stellar-cli-version <v>] [--compact|--pretty
 Prints {"include": [...]} on stdout. Each include entry has:
   arch                  amd64 | arm64
   platform              linux/amd64 | linux/arm64
+  rust_base_key         composite key, e.g. 1.94.0-slim-trixie
+  rust_base_suffix      variant+debian portion, e.g. slim-trixie
   rust_image_digest     sha256:... (pinned base image digest)
-  rust_version          e.g. 1.94.0
+  rust_version          bare rust toolchain version, e.g. 1.94.0
   stellar_cli_ref       40-char git SHA from stellar/stellar-cli
   stellar_cli_version   e.g. 26.0.0
 
@@ -65,27 +69,33 @@ main() {
   builds_json "${jq_flags[@]}" --arg only "$only_cli" '
     . as $b
     | def archs: ["amd64", "arm64"];
-      def digest_for(rust):
-        $b.rust_image_digests[rust]
-        // error("no rust_image_digests entry for rust version \(rust)");
-      def row(cli; ref; rust; arch):
-        {
-          arch: arch,
-          platform: ("linux/" + arch),
-          rust_image_digest: digest_for(rust),
-          rust_version: rust,
-          stellar_cli_ref: ref,
-          stellar_cli_version: cli
-        };
+      def digest_for(key):
+        $b.rust_image_digests[key]
+        // error("no rust_image_digests entry for rust base key \(key)");
+      def parse_key(key):
+        (key | capture("^(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)-(?<s>.+)$"))
+        // error("invalid rust base key \(key)");
+      def row(cli; ref; key; arch):
+        parse_key(key) as $p
+        | {
+            arch: arch,
+            platform: ("linux/" + arch),
+            rust_base_key: key,
+            rust_base_suffix: $p.s,
+            rust_image_digest: digest_for(key),
+            rust_version: $p.v,
+            stellar_cli_ref: ref,
+            stellar_cli_version: cli
+          };
 
       {
         include:
           [ .stellar_cli_versions[]
             | select($only == "" or .version == $only)
             | . as $e
-            | $e.rust_versions[] as $rust
+            | $e.rust_versions[] as $key
             | archs[] as $arch
-            | row($e.version; $e.ref; $rust; $arch)
+            | row($e.version; $e.ref; $key; $arch)
           ]
       }
   '

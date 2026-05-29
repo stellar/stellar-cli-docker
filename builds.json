@@ -1,28 +1,37 @@
 {
-  "$comment": "Source of truth for which (stellar-cli, rust) pairs we publish. Each stellar-cli release declares its own rust_versions[] at publish time; we do not cross-product. To refresh a rust_image_digest, capture the multi-arch INDEX digest via: docker buildx imagetools inspect rust:<version>-slim-bookworm --format '{{.Manifest.Digest}}'.",
+  "$comment": "Source of truth for which (stellar-cli, rust base) pairs we publish. Each stellar-cli release declares its own rust_versions[] at publish time; we do not cross-product. A rust base key joins the rust toolchain version and the upstream rust:<v>-<suffix> tail (e.g. 1.94.0-slim-trixie); see RELEASE.md '## Base image policy' for how the suffix default is chosen. To refresh a rust_image_digest, capture the multi-arch INDEX digest via: docker buildx imagetools inspect rust:<key> --format '{{.Manifest.Digest}}'.",
   "$schema": "./builds.schema.json",
   "rust_image_digests": {
-    "1.90.0": "sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9",
-    "1.93.0": "sha256:776861219cd851131c1cec3bbd7cbeb16b99a794048097eb69ad9682a8ed0d57",
-    "1.94.0": "sha256:a86cada82e36ebd7a9bffed7548792c55a952fdb20718eea9278a936bcb76e62"
+    "1.90.0-slim-bookworm": "sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9",
+    "1.93.0-slim-trixie": "sha256:760ad1d638d70ebbd0c61e06210e1289cbe45ff6425e3ea6e01241de3e14d08e",
+    "1.94.0-slim-trixie": "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0",
+    "1.95.0-slim-trixie": "sha256:e14e87345b4d5964ddcc3491d27ee046a0f23820f340c3c1e24da6880141f7c0"
   },
   "stellar_cli_versions": [
     {
-      "default_rust": "1.90.0",
+      "default_rust": "1.90.0-slim-bookworm",
       "ref": "a048a57a75762458b487052e0021ea704a926bee",
       "rust_versions": [
-        "1.90.0"
+        "1.90.0-slim-bookworm"
       ],
       "version": "25.1.0"
     },
     {
-      "default_rust": "1.94.0",
+      "default_rust": "1.94.0-slim-trixie",
       "ref": "60f7458e7ecffddf2f2d91dc6d0d2db4fab03ecc",
       "rust_versions": [
-        "1.93.0",
-        "1.94.0"
+        "1.93.0-slim-trixie",
+        "1.94.0-slim-trixie"
       ],
       "version": "26.0.0"
+    },
+    {
+      "default_rust": "1.95.0-slim-trixie",
+      "ref": "1228cff8022b804659750b94b315932b0e0f3f6a",
+      "rust_versions": [
+        "1.95.0-slim-trixie"
+      ],
+      "version": "26.1.0"
     }
   ]
 }

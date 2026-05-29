@@ -3,20 +3,24 @@
 # Reproducible stellar-cli image. See SEP-58 for the full contract:
 # https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0058.md
 #
-# Every input is pinned. The Debian base via the official Rust image's
-# multi-arch index digest, the Rust toolchain by version, and stellar-cli to
-# a specific upstream commit SHA. Build args are not optional; the build
-# scripts and CI workflows always supply them.
+# Every input is pinned. The base image is referenced by its multi-arch
+# index digest exclusively — FROM never carries a tag — so a drifting tag
+# cannot silently change what we build against. RUST_VERSION and
+# RUST_BASE_SUFFIX are surfaced in labels (and RUST_VERSION drives
+# RUSTUP_TOOLCHAIN) but are metadata, not load-bearing on FROM. The Rust
+# toolchain is pinned by version, and stellar-cli by a specific upstream
+# commit SHA. Build args are not optional; the build scripts and CI
+# workflows always supply them.
 
 ARG RUST_VERSION
+ARG RUST_BASE_SUFFIX
 ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
-ARG BUILDS_JSON_SHA
 ARG SOURCE_REPO
 
-FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST} AS builder
+FROM rust@${RUST_IMAGE_DIGEST} AS builder
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
@@ -46,16 +50,15 @@ RUN installed_version="$(/out/bin/stellar version --only-version)" \
      && test "$installed_rev" = "${STELLAR_CLI_REV}" \
      || { echo "stellar-cli mismatch: binary reports version='$installed_version' rev='$installed_rev', expected version='${STELLAR_CLI_VERSION}' rev='${STELLAR_CLI_REV}'" >&2; exit 1; }
 
-FROM rust:${RUST_VERSION}-slim-bookworm@${RUST_IMAGE_DIGEST}
+FROM rust@${RUST_IMAGE_DIGEST}
 SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 ARG RUST_VERSION
+ARG RUST_BASE_SUFFIX
 ARG RUST_IMAGE_DIGEST
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
-ARG BUILDS_JSON_SHA
 ARG SOURCE_REPO
-ARG TARGETARCH
 
 # RUSTUP_TOOLCHAIN is baked in so an in-source `rust-toolchain.toml` in a
 # consumer's contract can't silently swap our pinned toolchain at build
@@ -93,12 +96,5 @@ LABEL org.opencontainers.image.title="stellar-cli" \
       org.opencontainers.image.version="${STELLAR_CLI_VERSION}" \
       org.opencontainers.image.revision="${STELLAR_CLI_REV}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.base.name="docker.io/library/rust:${RUST_VERSION}-slim-bookworm" \
-      org.opencontainers.image.base.digest="${RUST_IMAGE_DIGEST}" \
-      org.stellar.rust-version="${RUST_VERSION}" \
-      org.stellar.rust-image-digest="${RUST_IMAGE_DIGEST}" \
-      org.stellar.stellar-cli-ref="${STELLAR_CLI_REV}" \
-      org.stellar.stellar-cli-version="${STELLAR_CLI_VERSION}" \
-      org.stellar.wasm-target="wasm32v1-none" \
-      org.stellar.build-arch="${TARGETARCH}" \
-      org.stellar.builds-json-sha="${BUILDS_JSON_SHA}"
+      org.opencontainers.image.base.name="docker.io/library/rust:${RUST_VERSION}-${RUST_BASE_SUFFIX}" \
+      org.opencontainers.image.base.digest="${RUST_IMAGE_DIGEST}"

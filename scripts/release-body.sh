@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Compose the markdown body for a GitHub Release, given a directory of
-# per-arch metadata files (meta-<cli>-rust<rust>-<arch>.json) written by
+# per-arch metadata files (meta-<cli>-rust<key>-<arch>.json) written by
 # the publish workflow's build job.
 #
 # Each metadata file has the shape:
-#   {"arch": "...", "digest": "sha256:...", "image": "...", "rust_version": "...",
+#   {"arch": "...", "digest": "sha256:...", "image": "...",
+#    "rust_base_key": "...", "rust_version": "...",
 #    "stellar_cli_version": "...", "tag": "..."}
+#
+# `rust_version` is the bare toolchain version (e.g. 1.94.0) and
+# `rust_base_key` is the composite (e.g. 1.94.0-trixie). The body sorts
+# rows numerically by bare version and groups them by composite key.
 #
 # Output goes to stdout.
 
@@ -74,7 +79,7 @@ main() {
   done
 
   local rows
-  rows="$(jq -s 'sort_by((.rust_version | split(".") | map(tonumber)), .arch)' "${meta_files[@]}")"
+  rows="$(jq -s 'sort_by((.rust_version | split(".") | map(tonumber)), .rust_base_key, .arch)' "${meta_files[@]}")"
 
   emit_body "$cli" "$rows" "$registry" "$repo"
 }
@@ -86,43 +91,51 @@ emit_body() {
 
   printf 'Stellar CLI image (SEP-58-compatible image for Stellar smart contracts).\n\n'
 
-  printf '## Convenience tags\n\n'
-  printf -- '- `%s:%s` — multi-arch, default Rust for this release\n' "$registry" "$cli"
-  local rust
-  while IFS= read -r rust; do
-    printf -- '- `%s:%s-rust%s` — multi-arch\n' "$registry" "$cli" "$rust"
-  done < <(jq -r 'map(.rust_version) | unique | sort_by(split(".") | map(tonumber)) | .[]' <<<"$rows")
+  printf '## Tags\n\n'
+  printf 'Moving tags (re-pointed on each publish; do not use for SEP-58 `bldimg`):\n\n'
+  printf -- '- `%s:latest` — newest declared cli, default Rust\n' "$registry"
+  printf -- '- `%s:%s` — this cli, default Rust\n' "$registry" "$cli"
+  local key ref
+  ref="$(stellar_cli_ref_for "$cli")"
+  printf '\nImmutable, pinned to stellar-cli `%s`:\n\n' "$ref"
+  while IFS= read -r key; do
+    printf -- '- `%s:%s-%s-rust%s` — multi-arch\n' "$registry" "$cli" "$ref" "$key"
+    printf -- '- `%s:%s-%s-rust%s-amd64`\n' "$registry" "$cli" "$ref" "$key"
+    printf -- '- `%s:%s-%s-rust%s-arm64`\n' "$registry" "$cli" "$ref" "$key"
+  done < <(jq -r '
+    map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
+    | unique_by(.key)
+    | sort_by(.ver, .key)
+    | .[].key
+  ' <<<"$rows")
 
   printf '\n## Per-architecture digests (for SEP-58 `bldimg`)\n\n'
   printf 'Use the per-architecture digest when recording `bldimg` in your contract metadata. Never use a moving tag like `:latest` or `:%s`.\n\n' "$cli"
 
   local rust_rows
-  while IFS= read -r rust; do
-    printf '### Rust %s\n\n' "$rust"
-    rust_rows="$(jq -c --arg r "$rust" 'map(select(.rust_version == $r)) | .[]' <<<"$rows")"
+  while IFS= read -r key; do
+    printf '### Rust %s\n\n' "$key"
+    rust_rows="$(jq -c --arg k "$key" 'map(select(.rust_base_key == $k)) | .[]' <<<"$rows")"
 
     while IFS= read -r row; do
-      printf -- '- `%s@%s`\n' \
-        "$(jq -r '.image' <<<"$row")" \
+      printf -- '- `linux/%s`: `%s@%s`\n' \
+        "$(jq -r '.arch' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
 
     printf '\nVerify:\n\n```sh\n'
 
-    # gh attestation verify — verifies all attestation chains attached
-    # to the image (SLSA provenance + SPDX SBOM in our case).
     while IFS= read -r row; do
       printf 'gh attestation verify oci://%s@%s --repo %s\n' \
-        "$(jq -r '.image' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")" \
         "$repo"
     done <<<"$rust_rows"
 
-    # cosign verify-attestation — registry-attached SLSA v1.0 provenance.
-    # The certificate flags anchor trust to this repo's GitHub Actions
+    # cosign's certificate flags anchor trust to this repo's GitHub Actions
     # OIDC identity (the workflow that ran actions/attest-build-provenance);
-    # without them cosign accepts any valid Sigstore signature, which is
-    # not what we want. Pass `--type spdxjson` to verify the SBOM instead.
+    # without them cosign accepts any valid Sigstore signature.
     printf '\n'
     while IFS= read -r row; do
       printf 'cosign verify-attestation \\\n'
@@ -130,21 +143,24 @@ emit_body() {
       printf '  --certificate-identity-regexp "https://github.com/%s/\\.github/workflows/.*" \\\n' "$repo"
       printf '  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n'
       printf '  %s@%s\n' \
-        "$(jq -r '.image' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
 
-    # docker buildx imagetools inspect — manifest + attached attestation
-    # metadata (no signature verification, just inspection).
     printf '\n'
     while IFS= read -r row; do
       printf 'docker buildx imagetools inspect %s@%s\n' \
-        "$(jq -r '.image' <<<"$row")" \
+        "$registry" \
         "$(jq -r '.digest' <<<"$row")"
     done <<<"$rust_rows"
 
     printf '```\n\n'
-  done < <(jq -r 'map(.rust_version) | unique | sort_by(split(".") | map(tonumber)) | .[]' <<<"$rows")
+  done < <(jq -r '
+    map({key: .rust_base_key, ver: (.rust_version | split(".") | map(tonumber))})
+    | unique_by(.key)
+    | sort_by(.ver, .key)
+    | .[].key
+  ' <<<"$rows")
 
   cat <<'EOF'
 ## Verification
@@ -154,6 +170,8 @@ Each per-architecture image carries two independent attestation chains — SLSA 
 - `gh attestation verify` — checks every attestation chain in one call (recommended).
 - `cosign verify-attestation` — registry-attached verification with explicit certificate identity + OIDC issuer flags so trust is anchored to this repo's workflows, not just "any valid Sigstore signature".
 - `docker buildx imagetools inspect` — manifest + attached attestation metadata, useful for inspection (not signature verification).
+
+Verification requires a per-architecture reference (digest or per-arch tag). Verifying against `:latest`, `:<cli>`, or the multi-arch list tag fails because those resolve to the manifest list digest, which isn't what the per-arch attestations were signed against.
 
 ## Assets
 

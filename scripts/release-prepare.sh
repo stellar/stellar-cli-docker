@@ -21,11 +21,15 @@ Required:
                               tag is chosen.
 
 Options:
-  --rust-versions <list>      Comma-separated rust versions to pair with.
+  --rust-versions <list>      Comma-separated composite rust base keys to
+                              pair with, e.g. 1.94.1-trixie,1.95.0-trixie.
                               Default: the last two minor stable rust
                               versions from rust-lang/rust GitHub releases,
-                              at their latest patch each (e.g. 1.94.1,1.95.0).
-                              The last entry in the list becomes default_rust.
+                              at their latest patch each, joined with the
+                              variant+debian suffix carried by the most
+                              recent existing builds.json entry's
+                              default_rust. The last entry in the list
+                              becomes default_rust.
   --help                      Show this message.
 
 Stages builds.json (new entry or refresh), resolves cli ref + rust image
@@ -53,7 +57,7 @@ main() {
 
   test -n "$cli" || { err "--stellar-cli-version is required"; usage; exit 1; }
 
-  preflight_checks jq gh git sha256
+  preflight_checks jq gh git curl sha256
 
   # Snapshot of builds.json before any modifications, so we can detect
   # whether the script actually changed anything (vs. a no-op refresh).
@@ -72,21 +76,25 @@ main() {
   fi
   log "mode: $mode"
 
-  # Always the latest two minor stable rust versions, at their latest patch
-  # each. Maintainers who need different pairings can edit builds.json on
-  # the release branch before merging.
+  # Always the latest two minor rust base keys for the suffix in use
+  # today, at their latest patch each. Sourced from Docker Hub's library/
+  # rust tag list so we can never pick a key whose image hasn't been
+  # published yet. Maintainers who need different pairings can edit
+  # builds.json on the release branch before merging.
   local -a rusts=()
   if [ -n "$rust_versions_csv" ]; then
     IFS=',' read -ra rusts <<<"$rust_versions_csv"
-    log "rust versions (from --rust-versions): ${rusts[*]}"
+    log "rust base keys (from --rust-versions): ${rusts[*]}"
   else
-    log "picking the last 2 minor stable rust versions from rust-lang/rust ..."
-    while IFS= read -r v; do
-      rusts+=("$v")
-    done < <(pick_default_rust_versions)
-    log "rust versions (auto): ${rusts[*]}"
+    local suffix
+    suffix="$(current_rust_base_suffix)"
+    log "picking the last 2 minor rust base keys with suffix '$suffix' from Docker Hub ..."
+    while IFS= read -r k; do
+      rusts+=("$k")
+    done < <(pick_default_rust_base_keys "$suffix")
+    log "rust base keys (auto): ${rusts[*]}"
   fi
-  test "${#rusts[@]}" -gt 0 || die "no rust versions selected"
+  test "${#rusts[@]}" -gt 0 || die "no rust base keys selected"
   local default_rust="${rusts[-1]}"
   log "default_rust: $default_rust"
 
@@ -130,25 +138,55 @@ main() {
   printf '%s\n' "$release_tag"
 }
 
-# Picks the last two unique minor stable rust versions, at their latest
-# patch each, from rust-lang/rust's GitHub releases. Output: ascending,
-# one per line.
-pick_default_rust_versions() {
-  local versions
-  versions="$(gh api repos/rust-lang/rust/releases \
-    --jq '[.[] | select(.prerelease == false) | .tag_name] | .[0:20]')"
-  jq -r '
-    reduce .[] as $v (
-      {result: [], seen: {}};
-      ($v | split(".") | .[0:2] | join(".")) as $minor
-      | if .seen[$minor] then .
-        else .result += [$v] | .seen[$minor] = true
-        end
-    )
-    | .result[0:2]
-    | sort_by(split(".") | map(tonumber))
-    | .[]
-  ' <<<"$versions"
+# Returns the variant+debian suffix carried by the newest existing entry's
+# default_rust. Dies if builds.json has no entries — in that bootstrap
+# case the maintainer must pass --rust-versions explicitly (with composite
+# keys) so the source of truth stays exclusively in builds.json.
+current_rust_base_suffix() {
+  local newest_default
+  newest_default="$(builds_json '
+    .stellar_cli_versions
+    | sort_by(.version | split(".") | map(tonumber))
+    | .[-1].default_rust // empty
+  ')"
+  test -n "$newest_default" \
+    || die "builds.json has no stellar_cli_versions; pass --rust-versions with composite keys (e.g. 1.94.0-trixie) to seed the first entry"
+  rust_base_suffix_from_key "$newest_default"
+}
+
+# Picks the last two unique minor rust base keys for the given suffix,
+# at their latest patch each, by listing library/rust tags on Docker Hub.
+# Using Docker Hub as the source list closes the timing race where
+# rust-lang/rust publishes a new release before the docker-rust team
+# publishes the matching image: tags we can't pull are simply not in
+# the response. Output: ascending composite keys, one per line.
+pick_default_rust_base_keys() {
+  local suffix="$1"
+  test -n "$suffix" || die "pick_default_rust_base_keys: suffix is required"
+
+  # `name=<suffix>` is a server-side substring filter that narrows the
+  # response. The local regex is what enforces the exact composite key
+  # shape, so a tag like 1.96.0-slim-bookworm (different debian) or
+  # 1.96.0-trixie (non-slim) is rejected even though substrings overlap.
+  curl -fsSL "https://hub.docker.com/v2/repositories/library/rust/tags?page_size=100&name=${suffix}" \
+    | jq -r --arg suffix "$suffix" '
+        [.results[].name
+         | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+-" + $suffix + "$"))]
+        | sort_by(capture("^(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)-").v
+                  | split(".") | map(tonumber))
+        | reverse
+        | reduce .[] as $tag (
+            {result: [], seen: {}};
+            ($tag | capture("^(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)-").v
+                  | split(".") | .[0:2] | join(".")) as $minor
+            | if .seen[$minor] then .
+              else .result += [$tag] | .seen[$minor] = true
+              end
+          )
+        | .result[0:2]
+        | reverse
+        | .[]
+      '
 }
 
 # Appends a fresh stellar_cli_versions entry (with empty ref). Used for
@@ -208,12 +246,15 @@ make_cli_entry() {
   shift 3
   local -a rust_versions=("$@")
 
-  # Sort numerically so 1.100.0 lands AFTER 1.99.0; default jq `sort` on
-  # strings would put "1.100.0" before "1.99.0" lexicographically.
+  # Sort numerically by the bare rust version embedded at the front of
+  # each composite key (e.g. 1.94.1-trixie -> [1, 94, 1]) so 1.100.0-trixie
+  # lands AFTER 1.99.0-trixie; default jq `sort` on strings would put
+  # "1.100.0-..." before "1.99.0-..." lexicographically. Splitting only on
+  # "." would feed "1-trixie" into tonumber and fail.
   local rust_array
   rust_array="$(printf '%s\n' "${rust_versions[@]}" \
     | jq -R . \
-    | jq -s 'sort_by(split(".") | map(tonumber))')"
+    | jq -s 'sort_by(split("-") | .[0] | split(".") | map(tonumber))')"
 
   jq -n \
     --arg default_rust "$default_rust" \

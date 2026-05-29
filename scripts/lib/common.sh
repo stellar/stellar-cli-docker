@@ -116,12 +116,13 @@ builds_json() {
   jq -r "$@" "$BUILDS_JSON_PATH"
 }
 
-# Resolve the rust image digest for a given rust version. Dies if unknown.
+# Resolve the rust image digest for a given rust base key. Dies if unknown.
+# A rust base key is the composite <rust>-<debian> form, e.g. 1.94.0-trixie.
 rust_image_digest_for() {
-  local rust="$1"
+  local rust_key="$1"
   local digest
-  digest="$(builds_json --arg rust "$rust" '.rust_image_digests[$rust] // empty')"
-  test -n "$digest" || die "no rust_image_digests entry for rust version: $rust"
+  digest="$(builds_json --arg rust "$rust_key" '.rust_image_digests[$rust] // empty')"
+  test -n "$digest" || die "no rust_image_digests entry for rust base key: $rust_key"
   printf '%s' "$digest"
 }
 
@@ -134,12 +135,32 @@ stellar_cli_ref_for() {
   printf '%s' "$ref"
 }
 
-# Assert that a (cli-version, rust-version) pair is declared in builds.json.
+# Assert that a (cli-version, rust-base-key) pair is declared in builds.json.
 assert_pair_declared() {
-  local cli="$1" rust="$2"
+  local cli="$1" rust_key="$2"
   local found
-  found="$(builds_json --arg cli "$cli" --arg rust "$rust" \
+  found="$(builds_json --arg cli "$cli" --arg rust "$rust_key" \
     '.stellar_cli_versions[] | select(.version == $cli) | .rust_versions[] | select(. == $rust)')"
   test -n "$found" \
-    || die "stellar-cli $cli is not declared with rust $rust in builds.json"
+    || die "stellar-cli $cli is not declared with rust base key $rust_key in builds.json"
+}
+
+# Extract the bare rust toolchain version from a composite base key.
+# 1.94.0-trixie -> 1.94.0
+rust_version_from_key() {
+  local key="$1"
+  [[ "$key" =~ ^([0-9]+\.[0-9]+\.[0-9]+)- ]] \
+    || die "invalid rust base key: $key (expected <version>-<debian>)"
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# Extract the Debian codename suffix from a composite base key. This is
+# the trailing part used by the upstream Rust image tag, e.g. `trixie`.
+# It is metadata only — labels and tag construction consume it; FROM
+# lines never do.
+rust_base_suffix_from_key() {
+  local key="$1"
+  [[ "$key" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(.+)$ ]] \
+    || die "invalid rust base key: $key (expected <version>-<debian>)"
+  printf '%s' "${BASH_REMATCH[1]}"
 }
