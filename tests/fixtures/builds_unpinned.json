@@ -1,0 +1,18 @@
+{
+  "$comment": "Fixture with blank/partial digests so refresh-rust-digests has work to do.",
+  "$schema": "../../builds.schema.json",
+  "default_distro": "trixie",
+  "rust_image_digests": {
+    "1.94.0-slim-trixie": "",
+    "1.95.0-slim-trixie": "sha256:e14e87345b4d5964ddcc3491d27ee046a0f23820f340c3c1e24da6880141f7c0"
+  },
+  "stellar_cli_versions": [
+    {
+      "ref": "60f7458e7ecffddf2f2d91dc6d0d2db4fab03ecc",
+      "rust_versions": [
+        "1.94.0-slim-trixie"
+      ],
+      "version": "26.0.0"
+    }
+  ]
+}

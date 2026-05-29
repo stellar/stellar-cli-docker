@@ -105,7 +105,7 @@ main() {
   scripts/refresh-stellar-cli-digests.sh
 
   log "resolving rust image digests ..."
-  scripts/refresh-rust-digests.sh
+  scripts/refresh_rust_digests.py
 
   log "validating builds.json ..."
   scripts/validate_json.py

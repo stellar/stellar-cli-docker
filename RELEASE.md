@@ -159,7 +159,7 @@ The `Dockerfile`'s `FROM` lines reference the image by digest only; the variant 
 Pinned values in `builds.json` are intentional. Bumping them changes the bytes of published images and invalidates anything that already referenced the prior digest, so it's a deliberate action.
 
 ```sh
-./scripts/refresh-rust-digests.sh --rust-version 1.94.0-slim-trixie
+./scripts/refresh_rust_digests.py --rust-version 1.94.0-slim-trixie
 ./scripts/refresh-stellar-cli-digests.sh --stellar-cli-version 26.1.0
 ```
 
