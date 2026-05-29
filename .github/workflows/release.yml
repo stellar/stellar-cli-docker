@@ -59,47 +59,29 @@ jobs:
           ACTOR: ${{ github.actor }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          # Title and notes wording depend on whether this is a fresh
-          # release or a refresh iteration of an existing release.
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            title="Refresh stellar-cli ${VERSION} (${RELEASE_TAG#v})"
-            kind="refresh"
-          else
-            title="Release stellar-cli ${VERSION}"
-            kind="new release"
-          fi
-
+          title="$(./scripts/release_pr_body.py \
+            --stellar-cli-version "$VERSION" \
+            --release-tag "$RELEASE_TAG" \
+            --actor "$ACTOR" \
+            --repo "$REPO" \
+            --run-url "$RUN_URL" \
+            --default-branch "$DEFAULT_BRANCH" \
+            --field title)"
+          body="$(./scripts/release_pr_body.py \
+            --stellar-cli-version "$VERSION" \
+            --release-tag "$RELEASE_TAG" \
+            --actor "$ACTOR" \
+            --repo "$REPO" \
+            --run-url "$RUN_URL" \
+            --default-branch "$DEFAULT_BRANCH" \
+            --field body)"
           gh pr create \
-            --base "${{ github.event.repository.default_branch }}" \
+            --base "$DEFAULT_BRANCH" \
             --head "release/${RELEASE_TAG}" \
             --title "$title" \
-            --body "$(cat <<EOF
-          ### What
-
-          Stage a $kind for stellar-cli ${VERSION}. \`builds.json\` is updated with the rust pairings auto-picked from the current last two minor stable releases on \`rust-lang/rust\`, and any new \`rust_image_digests\` entries are resolved.
-
-          ### Why
-
-          Triggered by @${ACTOR} in ${RUN_URL}.
-
-          ### What is next
-
-          See [RELEASE.md](./RELEASE.md) for the full release process.
-
-          Push any further changes to the \`release/${RELEASE_TAG}\` branch that are needed in this release (for example, adjusting the paired \`rust_versions\` if the auto-pick isn't right for this iteration).
-
-          When this PR is reviewed and merged, create a GitHub Release by going to:
-
-          https://github.com/${REPO}/releases/new?tag=${RELEASE_TAG}&title=${RELEASE_TAG#v}&target=${{ github.event.repository.default_branch }}
-
-          The publish workflow fires on the release-published event and:
-          - Builds and pushes per-arch images for any new (cli, rust base) pairs; existing pairs are skipped with a warning (per-arch tags are immutable)
-          - Generates SLSA build provenance + SPDX SBOM attestations on each newly-built image (buildx-native + GitHub-native chains)
-          - Re-points the \`:${VERSION}\` and (if newest) \`:latest\` aliases
-          - Attaches the SBOM and provenance files to the new GitHub Release, with per-arch digests in the body
-          EOF
-          )"
+            --body "$body"
 
   complete:
     if: always()
