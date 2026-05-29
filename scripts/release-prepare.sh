@@ -196,7 +196,10 @@ add_cli_entry() {
     --argjson entry "$cli_entry" \
     --argjson stubs "$stubs" \
     '
-      .stellar_cli_versions += [$entry]
+      .stellar_cli_versions |= (
+        . + [$entry]
+        | sort_by(.version | split(".") | map(tonumber))
+      )
       | .rust_image_digests = ($stubs + .rust_image_digests)
     ' \
     "$BUILDS_JSON_PATH" > "$tmp"
@@ -231,8 +234,9 @@ extend_cli_entry() {
     --argjson rust_versions "$merged" \
     --argjson stubs "$stubs" \
     '
-      .stellar_cli_versions |= map(
-        if .version == $cli then .rust_versions = $rust_versions else . end
+      .stellar_cli_versions |= (
+        map(if .version == $cli then .rust_versions = $rust_versions else . end)
+        | sort_by(.version | split(".") | map(tonumber))
       )
       | .rust_image_digests = ($stubs + .rust_image_digests)
     ' \
