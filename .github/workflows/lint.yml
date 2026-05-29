@@ -36,26 +36,20 @@ jobs:
           dockerfile: Dockerfile
           config: .hadolint.yaml
 
-  shellcheck:
-    name: shellcheck
+  python:
+    name: ruff
     runs-on: ubuntu-24.04
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: shellcheck
-        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # v2.0.0
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          scandir: scripts
-          severity: style
-
-  shell:
-    name: validate shell
-    runs-on: ubuntu-24.04
-    steps:
-      - name: checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: validate shell scripts
-        run: ./scripts/validate-shell.sh
+          enable-cache: true
+      - name: ruff check
+        run: uv run ruff check scripts/ tests/
+      - name: ruff format
+        run: uv run ruff format --check scripts/ tests/
 
   matrix-smoke:
     name: resolve-matrix smoke
@@ -88,8 +82,7 @@ jobs:
     needs:
       - json
       - dockerfile
-      - shellcheck
-      - shell
+      - python
       - matrix-smoke
       - tests
     runs-on: ubuntu-24.04

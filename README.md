@@ -60,7 +60,7 @@ compare the resulting WASM sha256.
 | `scripts/refresh_rust_digests.py`        | Fills blank `rust_image_digests` entries by inspecting `rust:<key>` upstream (where `<key>` is the composite `<rust>-<suffix>` form). Does not touch already-pinned digests unless asked per-key. |
 | `scripts/refresh_stellar_cli_digests.py` | Fills blank `stellar_cli_versions[].ref` entries by resolving the matching `v<version>` git tag in `stellar/stellar-cli`. Same per-target opt-in shape as the rust refresher.                     |
 | `scripts/verify_image.py`                | Consumer-facing verifier. Wraps `gh attestation verify` for both the SLSA build provenance and the SPDX SBOM attestations against a per-arch image digest.                                        |
-| `scripts/lib/common.sh`                  | Shared helpers sourced by the other scripts.                                                                                                                                                      |
+| `scripts/lib/`                           | Shared Python helpers imported by the other scripts (builds.json IO, semver/key parsing, subprocess + adapter wrappers).                                                                          |
 
 ## Local development
 
