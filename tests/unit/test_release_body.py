@@ -115,6 +115,16 @@ def test_emit_body_includes_expected_sections() -> None:
     assert "docker buildx imagetools inspect" in body
     assert "## Verification" in body
     assert "## Assets" in body
+    # Each shell-continuation line in the cosign block must end with a single
+    # backslash, not two — `\\` in the rendered markdown would land as a
+    # literal `\\` in the user's terminal instead of a line continuation.
+    cosign_lines = [
+        line for line in body.splitlines() if "cosign" in line or "certificate-" in line
+    ]
+    assert cosign_lines, "expected cosign verify lines in body"
+    for line in cosign_lines:
+        if line.endswith("\\"):
+            assert not line.endswith(r"\\"), f"double-backslash continuation: {line!r}"
 
 
 def test_main_writes_body_to_stdout(

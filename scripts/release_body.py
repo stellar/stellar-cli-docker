@@ -81,10 +81,8 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
         for row in key_rows:
             p("cosign verify-attestation \\")
             p("  --type slsaprovenance1 \\")
-            p(
-                f'  --certificate-identity-regexp "https://github.com/{repo}/'
-                r'\.github/workflows/.*" \\'
-            )
+            identity_re = f"https://github.com/{repo}/\\.github/workflows/.*"
+            p(f'  --certificate-identity-regexp "{identity_re}" \\')
             p("  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\")
             p(f"  {registry}@{row['digest']}")
         p()
