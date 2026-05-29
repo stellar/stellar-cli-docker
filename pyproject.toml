@@ -9,8 +9,12 @@ dependencies = [
 ]
 
 [dependency-groups]
+# pytest is capped below 8.4 because that release made `pygments` a hard
+# runtime dependency, and the pygments sdist bundles GPL-licensed syntax-
+# highlighter test fixtures that trip the org's Socket license policy.
+# pytest 8.3.x covers every feature this project uses.
 dev = [
-    "pytest>=8.0",
+    "pytest>=8.0,<8.4",
     "ruff>=0.6",
 ]
 
