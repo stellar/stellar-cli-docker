@@ -44,7 +44,7 @@ jobs:
             --rust-version "${{ steps.pair.outputs.rust }}"
       - name: smoke test
         run: |
-          ./scripts/smoke-test-image.sh \
+          ./scripts/smoke_test_image.py \
             --image "${{ steps.pair.outputs.image }}" \
             --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
             --rust-version "${{ steps.pair.outputs.rust }}"
