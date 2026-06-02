@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,16 @@ def test_main_resolves_digest_when_omitted(tmp_path: Path, monkeypatch: pytest.M
 def test_main_dies_if_lookup_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(_image):
         raise RuntimeError("no Digest line in output")
+
+    monkeypatch.setattr(write_metadata.docker_inspect, "index_digest", boom)
+    out = tmp_path / "meta.json"
+    with pytest.raises(SystemExit):
+        write_metadata.main(_common_args(out))
+
+
+def test_main_dies_if_docker_exits_nonzero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(_image):
+        raise subprocess.CalledProcessError(1, ["docker", "buildx", "imagetools", "inspect"])
 
     monkeypatch.setattr(write_metadata.docker_inspect, "index_digest", boom)
     out = tmp_path / "meta.json"

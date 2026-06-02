@@ -1,4 +1,5 @@
 import json
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -136,6 +137,20 @@ def test_main_new_release_writes_entry_and_emits_tag(
     data = json.loads(staged_minimal.read_text())
     versions = [e["version"] for e in data["stellar_cli_versions"]]
     assert "27.0.0" in versions
+
+
+def test_main_dies_cleanly_on_network_failure(
+    monkeypatch: pytest.MonkeyPatch, staged_minimal: Path
+) -> None:
+    monkeypatch.setattr(release_prepare.common, "preflight_checks", lambda _: None)
+
+    def boom(_url):
+        raise urllib.error.URLError("name resolution failed")
+
+    # No --rust-versions, so the auto-pick hits Docker Hub and raises.
+    monkeypatch.setattr(release_prepare.runner, "http_get_json", boom)
+    with pytest.raises(SystemExit):
+        release_prepare.main(["--stellar-cli-version", "27.0.0"])
 
 
 def test_main_dies_when_nothing_changes(

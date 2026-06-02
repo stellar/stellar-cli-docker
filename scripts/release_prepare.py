@@ -140,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
         builds.dump(data)
     except ValueError as exc:
         common.die(str(exc))
+    except OSError as exc:
+        # Network failure from the Docker Hub tag lookup (urllib raises
+        # URLError, an OSError) or a filesystem error writing builds.json.
+        common.die(f"failed to stage builds.json: {exc}")
 
     common.log("resolving upstream stellar-cli ref ...")
     refresh_stellar_cli_digests.main([])

@@ -8,6 +8,7 @@ already in the registry (omit --digest and the script looks it up via
 """
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,8 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     if not digest:
         try:
             digest = docker_inspect.index_digest(args.image)
-        except RuntimeError as exc:
-            common.die(str(exc))
+        except (RuntimeError, subprocess.CalledProcessError) as exc:
+            common.die(f"could not resolve digest for {args.image}: {exc}")
 
     metadata = {
         "arch": args.arch,
