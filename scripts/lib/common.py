@@ -5,6 +5,7 @@ script's data contract.
 """
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,19 @@ def die(message: str) -> None:
 
 def repo_root() -> Path:
     return REPO_ROOT
+
+
+def step_summary(message: str) -> None:
+    """Append a markdown block to the GitHub Actions step summary.
+
+    No-op outside CI (when $GITHUB_STEP_SUMMARY is unset), so callers can
+    invoke it unconditionally.
+    """
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return
+    with open(path, "a") as f:
+        f.write(message + "\n")
 
 
 def require_cmd(*cmds: str) -> None:

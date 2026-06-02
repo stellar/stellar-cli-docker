@@ -74,6 +74,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"::warning::manifest list {list_ref} already exists; "
                 "skipping (lists are immutable)"
             )
+            common.step_summary(
+                "## ⚠️ Manifest list skipped — already published\n\n"
+                f"`{list_ref}` was already in the registry."
+            )
             continue
 
         common.log(f"::group::manifest {list_ref}")

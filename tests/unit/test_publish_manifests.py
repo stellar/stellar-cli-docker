@@ -39,9 +39,13 @@ def test_main_skips_existing_manifests(
     monkeypatch.setattr(publish_manifests.docker_inspect, "exists", lambda _: True)
     captured = MagicMock()
     monkeypatch.setattr(publish_manifests.docker_inspect, "create_manifest", captured)
+    summary = MagicMock()
+    monkeypatch.setattr(publish_manifests.common, "step_summary", summary)
 
     assert publish_manifests.main(["--stellar-cli-version", "26.0.0"]) == 0
     assert captured.call_count == 0
+    # Each skipped list records a step-summary note (26.0.0 has 2 rust_versions).
+    assert summary.call_count == 2
 
 
 def test_main_unknown_cli_dies(monkeypatch: pytest.MonkeyPatch, multi_cli_builds: dict) -> None:

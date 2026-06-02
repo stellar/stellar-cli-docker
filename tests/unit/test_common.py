@@ -62,6 +62,19 @@ def test_preflight_routes_buildx_token(monkeypatch: pytest.MonkeyPatch) -> None:
     assert called == [True]
 
 
+def test_step_summary_appends_when_env_set(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    common.step_summary("first")
+    common.step_summary("second")
+    assert summary.read_text() == "first\nsecond\n"
+
+
+def test_step_summary_noop_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    common.step_summary("ignored")  # no exception, nothing written
+
+
 def test_sha256_of_matches_hashlib(tmp_path: Path) -> None:
     f = tmp_path / "blob"
     f.write_bytes(b"hello world")
