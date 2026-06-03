@@ -53,7 +53,8 @@ jobs:
           ./scripts/smoke_test_image.py \
             --image "${{ steps.pair.outputs.image }}" \
             --stellar-cli-version "${{ steps.pair.outputs.cli }}" \
-            --rust-version "${{ steps.pair.outputs.rust }}"
+            --rust-version "${{ steps.pair.outputs.rust }}" \
+            --rust-image-digest "${{ steps.pair.outputs.digest }}"
       - name: wasm reproducibility
         run: |
           ./scripts/repro_test.py \
