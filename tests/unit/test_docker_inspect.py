@@ -10,22 +10,32 @@ def _completed(returncode: int = 0, stdout: str = "") -> subprocess.CompletedPro
     return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout)
 
 
-def test_index_digest_extracts_from_verbose_output(monkeypatch: pytest.MonkeyPatch) -> None:
-    sample = (
-        "Name:      docker.io/library/rust:1.94.0-slim-trixie\n"
-        "MediaType: application/vnd.oci.image.index.v1+json\n"
-        "Digest:    sha256:abc123\n"
-        "\n"
-        "Manifests:\n"
-        "  Name: ...\n"
-    )
-    monkeypatch.setattr(docker_inspect.runner, "capture", lambda _: sample)
-    assert docker_inspect.index_digest("rust:1.94.0-slim-trixie") == "sha256:abc123"
+_INDEX = "sha256:" + "a" * 64
 
 
-def test_index_digest_raises_when_missing_line(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_index_digest_uses_manifest_digest_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[list[str]] = []
+
+    def fake_capture(cmd: list[str]) -> str:
+        captured.append(cmd)
+        return f"{_INDEX}\n"
+
+    monkeypatch.setattr(docker_inspect.runner, "capture", fake_capture)
+    assert docker_inspect.index_digest("rust:1.94.0-slim-trixie") == _INDEX
+    assert captured[0][-2:] == ["--format", "{{.Manifest.Digest}}"]
+
+
+def test_index_digest_extracts_from_struct_dump(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Some buildx releases print the whole descriptor rather than the bare
+    # digest; the descriptor still carries only the single index digest.
+    dump = f"{{application/vnd.oci.image.index.v1+json {_INDEX} 1234 [] map[] [] <nil> <nil>}}\n"
+    monkeypatch.setattr(docker_inspect.runner, "capture", lambda _: dump)
+    assert docker_inspect.index_digest("rust:1.94.0-slim-trixie") == _INDEX
+
+
+def test_index_digest_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(docker_inspect.runner, "capture", lambda _: "no digest here\n")
-    with pytest.raises(RuntimeError, match="no Digest line"):
+    with pytest.raises(RuntimeError, match="no digest"):
         docker_inspect.index_digest("rust:foo")
 
 

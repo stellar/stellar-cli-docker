@@ -9,19 +9,22 @@ import re
 
 from lib import runner
 
-_DIGEST_LINE = re.compile(r"^Digest:\s*(\S+)\s*$", re.MULTILINE)
+_DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def index_digest(image_ref: str) -> str:
-    # `--format '{{.Manifest.Digest}}'` behaves inconsistently across
-    # amd64/arm64 buildx releases (one prints the digest, the other dumps
-    # the full manifest), so we parse the verbose output's "Digest:" line
-    # which is identical on both.
-    out = runner.capture(["docker", "buildx", "imagetools", "inspect", image_ref])
-    match = _DIGEST_LINE.search(out)
+    # `--format '{{.Manifest.Digest}}'` targets the top-level (index)
+    # descriptor's digest. Some buildx releases print the bare digest while
+    # others dump the whole descriptor struct, but the descriptor only ever
+    # carries the single index digest (child manifests aren't included), so
+    # extracting the lone sha256 is unambiguous across both forms.
+    out = runner.capture(
+        ["docker", "buildx", "imagetools", "inspect", image_ref, "--format", "{{.Manifest.Digest}}"]
+    )
+    match = _DIGEST.search(out)
     if match is None:
-        raise RuntimeError(f"no Digest line in imagetools inspect output for {image_ref}")
-    return match.group(1)
+        raise RuntimeError(f"no digest in imagetools inspect output for {image_ref}")
+    return match.group(0)
 
 
 def exists(image_ref: str) -> bool:
