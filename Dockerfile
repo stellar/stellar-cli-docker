@@ -44,8 +44,15 @@ RUN cargo install --locked --root /out \
 # Fail the build loudly if the binary's reported version disagrees with the
 # version the caller declared. Catches accidental ref/version drift in
 # builds.json at build time, not later when an image is already published.
+#
+# Full `stellar version` output is captured first, then parsed in memory.
+# Piping `stellar version | head -n1` closes head's read end after the
+# first line, leaving stellar with a broken pipe on its remaining writes;
+# Rust 1.96+ panics on EPIPE from stdio rather than exiting quietly, and
+# pipefail propagates that as a build failure even though the values matched.
 RUN installed_version="$(/out/bin/stellar version --only-version)" \
-     && installed_rev="$(/out/bin/stellar version | head -n1 | grep -oE '[0-9a-f]{40}')" \
+     && stellar_version_output="$(/out/bin/stellar version)" \
+     && installed_rev="$(printf '%s\n' "$stellar_version_output" | grep -oE '[0-9a-f]{40}' | head -n1)" \
      && test "$installed_version" = "${STELLAR_CLI_VERSION}" \
      && test "$installed_rev" = "${STELLAR_CLI_REV}" \
      || { echo "stellar-cli mismatch: binary reports version='$installed_version' rev='$installed_rev', expected version='${STELLAR_CLI_VERSION}' rev='${STELLAR_CLI_REV}'" >&2; exit 1; }
