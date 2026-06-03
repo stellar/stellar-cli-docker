@@ -28,7 +28,7 @@ docker run --rm docker.io/stellar/stellar-cli:latest --version
 Confirm the rustc version used:
 
 ```sh
-docker run --rm --entrypoint /usr/local/cargo/bin/rustc docker.io/stellar/stellar-cli:26.0.0 --version
+docker run --rm --entrypoint rustc docker.io/stellar/stellar-cli:latest --version
 ```
 
 Build a contract by mounting the contract directory at `/source`:
