@@ -1,0 +1,17 @@
+{
+  "$comment": "Cross-field violation: rust_versions[] references a key absent from rust_image_digests.",
+  "$schema": "../../builds.schema.json",
+  "default_distro": "trixie",
+  "rust_image_digests": {
+    "1.94.0-slim-trixie": "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
+  },
+  "stellar_cli_versions": [
+    {
+      "ref": "60f7458e7ecffddf2f2d91dc6d0d2db4fab03ecc",
+      "rust_versions": [
+        "1.99.0-slim-trixie"
+      ],
+      "version": "26.0.0"
+    }
+  ]
+}
