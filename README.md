@@ -31,6 +31,33 @@ Build a contract by mounting the contract directory at `/source`:
 docker run --rm -v "$PWD:/source" docker.io/stellar/stellar-cli:latest contract build --locked
 ```
 
+The image exposes four well-known paths:
+
+| Path       | What                                                                              |
+| ---------- | --------------------------------------------------------------------------------- |
+| `/source`  | `WORKDIR`. Bind-mount your contract here.                                         |
+| `/config`  | `STELLAR_CONFIG_HOME`. Mount to persist network and identity configuration.       |
+| `/data`    | `STELLAR_DATA_HOME`. Mount to persist CLI data.                                   |
+| `/stellar` | Home for user `stellar` (UID 1000). Mount to persist the cargo cache (see below). |
+
+The image runs as user `stellar` (UID 1000) with `/stellar` as the home
+directory. `CARGO_HOME` resolves to `/stellar/.cargo` inside the
+container, which is wiped on exit by default.
+
+To reuse cargo's registry index, git checkouts, and crate sources across
+runs — and to make the image work under `--user "$(id -u):$(id -g)"` on
+Linux hosts whose UID is not 1000 — mount a writable host directory at
+`/stellar`:
+
+```sh
+mkdir -p /tmp/myproject
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -v /tmp/myproject:/stellar \
+  -v "$PWD:/source" \
+  docker.io/stellar/stellar-cli:latest contract build --locked
+```
+
 ## Verifiable builds ([SEP-58](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0058.md))
 
 For verifiable references, **always pin to a per-arch single-architecture
