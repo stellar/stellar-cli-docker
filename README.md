@@ -25,6 +25,12 @@ Pull a published image (per-host arch):
 docker run --rm docker.io/stellar/stellar-cli:latest --version
 ```
 
+Confirm the rustc version used:
+
+```sh
+docker run --rm --entrypoint rustc docker.io/stellar/stellar-cli:latest --version
+```
+
 Build a contract by mounting the contract directory at `/source`:
 
 ```sh
