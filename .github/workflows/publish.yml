@@ -141,7 +141,7 @@ jobs:
         with:
           image: ${{ steps.tag.outputs.image }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.spdx.json
+          output-file: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.spdx.json
           upload-release-assets: false
           upload-artifact: false
 
@@ -164,14 +164,14 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.spdx.json
+          sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.spdx.json
           push-to-registry: true
 
       - name: write per-arch metadata
         if: steps.skip.outputs.skipped != 'true'
         run: |
           ./scripts/write_metadata.py \
-            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json" \
+            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.json" \
             --arch "${{ matrix.arch }}" \
             --stellar-cli-version "${{ matrix.stellar_cli_version }}" \
             --digest "${{ steps.build.outputs.digest }}" \
@@ -184,7 +184,7 @@ jobs:
         if: steps.skip.outputs.skipped != 'true'
         run: |
           cp "${{ steps.attest-prov.outputs.bundle-path }}" \
-            "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.intoto.jsonl"
+            "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.intoto.jsonl"
 
       # Skipped pairs still need metadata so the release-body composer can
       # show the full state of every declared pair, not just the freshly
@@ -196,7 +196,7 @@ jobs:
         if: steps.skip.outputs.skipped == 'true'
         run: |
           ./scripts/write_metadata.py \
-            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json" \
+            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.json" \
             --arch "${{ matrix.arch }}" \
             --stellar-cli-version "${{ matrix.stellar_cli_version }}" \
             --image "${{ steps.tag.outputs.image }}" \
@@ -207,7 +207,7 @@ jobs:
       - name: upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}
+          name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}
           path: |
             sbom-*.spdx.json
             prov-*.intoto.jsonl

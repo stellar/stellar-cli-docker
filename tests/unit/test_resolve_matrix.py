@@ -29,12 +29,42 @@ def test_build_matrix_row_carries_expected_keys(minimal_builds: dict) -> None:
     assert set(row.keys()) == {
         "arch",
         "platform",
+        "rust_base_id",
         "rust_base_key",
         "rust_base_suffix",
         "rust_image_digest",
         "rust_version",
         "stellar_cli_ref",
         "stellar_cli_version",
+    }
+
+
+def test_build_matrix_row_id_carries_digest_fragment(minimal_builds: dict) -> None:
+    matrix = resolve_matrix.build_matrix(minimal_builds)
+    row = matrix["include"][0]
+    # rust_base_id disambiguates two pins that share a label but differ by digest,
+    # so downstream artifact/file names never collide.
+    assert row["rust_base_id"] == "1.94.0-slim-trixie-f7bf1c266d9e48c"
+
+
+def test_build_matrix_same_label_two_digests_distinct_ids() -> None:
+    data = {
+        "default_distro": "trixie",
+        "stellar_cli_versions": [
+            {
+                "ref": "a" * 40,
+                "version": "26.0.0",
+                "rust_versions": [
+                    "1.94.0-slim-trixie@sha256:" + "a" * 64,
+                    "1.94.0-slim-trixie@sha256:" + "b" * 64,
+                ],
+            }
+        ],
+    }
+    ids = {row["rust_base_id"] for row in resolve_matrix.build_matrix(data)["include"]}
+    assert ids == {
+        "1.94.0-slim-trixie-" + "a" * 15,
+        "1.94.0-slim-trixie-" + "b" * 15,
     }
 
 

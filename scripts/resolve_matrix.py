@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 
+import tag_names
 from lib import builds, common, rust_keys
 
 ARCHES = ("amd64", "arm64")
@@ -28,11 +29,13 @@ def build_matrix(data: dict, only_cli: str = "") -> dict:
         for pin in entry["rust_versions"]:
             label, digest = builds.split_entry(pin)
             parsed = rust_keys.parse(label)
+            rust_base_id = f"{label}-{tag_names.short_digest(digest)}"
             for arch in ARCHES:
                 rows.append(
                     {
                         "arch": arch,
                         "platform": f"linux/{arch}",
+                        "rust_base_id": rust_base_id,
                         "rust_base_key": label,
                         "rust_base_suffix": parsed.suffix,
                         "rust_image_digest": digest,

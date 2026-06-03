@@ -32,7 +32,8 @@ def _short_ref(ref: str) -> str:
     return ref[:_SHORT]
 
 
-def _short_digest(digest: str) -> str:
+def short_digest(digest: str) -> str:
+    """First 15 hex chars of an image digest, with any `sha256:` prefix stripped."""
     return digest.removeprefix("sha256:")[:_SHORT]
 
 
@@ -48,7 +49,7 @@ def compose_tag(
     if stellar_cli_ref:
         tag = f"{tag}-{_short_ref(stellar_cli_ref)}"
     tag = f"{tag}-rust{rust_version}"
-    tag = f"{tag}-{_short_digest(rust_image_digest)}"
+    tag = f"{tag}-{short_digest(rust_image_digest)}"
     if platform:
         arch = _ARCH_FOR_PLATFORM.get(platform)
         if arch is None:

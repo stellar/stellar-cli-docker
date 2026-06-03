@@ -35,13 +35,19 @@ def load_metadata(metadata_dir: Path, expected_cli: str) -> list[dict]:
     return rows
 
 
-def rust_keys_newest_first(rows: list[dict]) -> list[str]:
-    """Unique rust base keys, ordered by toolchain version descending."""
+def list_tag(row: dict) -> str:
+    """The multi-arch manifest-list tag for a row: its per-arch tag minus the arch."""
+    return row["tag"].removesuffix(f"-{row['arch']}")
+
+
+def pins_newest_first(rows: list[dict]) -> list[str]:
+    """Unique multi-arch list tags (one per base pin), ordered by version descending."""
     seen: dict[str, tuple] = {}
     for row in rows:
-        if row["rust_base_key"] not in seen:
-            seen[row["rust_base_key"]] = semver.parse(row["rust_version"])
-    return sorted(seen.keys(), key=lambda k: (seen[k], k), reverse=True)
+        tag = list_tag(row)
+        if tag not in seen:
+            seen[tag] = semver.parse(row["rust_version"])
+    return sorted(seen.keys(), key=lambda t: (seen[t], t), reverse=True)
 
 
 def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_ref: str) -> str:
@@ -57,10 +63,10 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
     p(f"- `{registry}:{cli}` — this cli, default Rust")
     p()
     p(f"Immutable, pinned to stellar-cli `{stellar_ref}`:\n")
-    for key in rust_keys_newest_first(rows):
-        p(f"- `{registry}:{cli}-{stellar_ref}-rust{key}` — multi-arch")
-        p(f"- `{registry}:{cli}-{stellar_ref}-rust{key}-amd64`")
-        p(f"- `{registry}:{cli}-{stellar_ref}-rust{key}-arm64`")
+    for tag in pins_newest_first(rows):
+        p(f"- `{registry}:{tag}` — multi-arch")
+        for row in [r for r in rows if list_tag(r) == tag]:
+            p(f"- `{registry}:{row['tag']}`")
 
     p("\n## Per-architecture digests (for SEP-58 `bldimg`)\n")
     p(
@@ -68,17 +74,19 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
         f"metadata. Never use a moving tag like `:latest` or `:{cli}`.\n"
     )
 
-    for key in rust_keys_newest_first(rows):
-        p(f"### Rust {key}\n")
-        key_rows = [r for r in rows if r["rust_base_key"] == key]
-        for row in key_rows:
+    for tag in pins_newest_first(rows):
+        pin_rows = [r for r in rows if list_tag(r) == tag]
+        key = pin_rows[0]["rust_base_key"]
+        base_digest = tag.rsplit("-", 1)[1]
+        p(f"### Rust {key} (base {base_digest})\n")
+        for row in pin_rows:
             p(f"- `linux/{row['arch']}`: `{registry}@{row['digest']}`")
         p("\nVerify:\n")
         p("```sh")
-        for row in key_rows:
+        for row in pin_rows:
             p(f"gh attestation verify oci://{registry}@{row['digest']} --repo {repo}")
         p()
-        for row in key_rows:
+        for row in pin_rows:
             p("cosign verify-attestation \\")
             p("  --type slsaprovenance1 \\")
             identity_re = f"https://github.com/{repo}/\\.github/workflows/.*"
@@ -86,7 +94,7 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
             p("  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\")
             p(f"  {registry}@{row['digest']}")
         p()
-        for row in key_rows:
+        for row in pin_rows:
             p(f"docker buildx imagetools inspect {registry}@{row['digest']}")
         p("```\n")
 
