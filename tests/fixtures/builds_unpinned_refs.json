@@ -1,22 +1,19 @@
 {
-  "$comment": "Fixture with one blank ref so refresh-stellar-cli-digests has work to do.",
+  "$comment": "Fixture with one blank ref so refresh has a ref to resolve.",
   "$schema": "../../builds.schema.json",
   "default_distro": "trixie",
-  "rust_image_digests": {
-    "1.94.0-slim-trixie": "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
-  },
   "stellar_cli_versions": [
     {
       "ref": "",
       "rust_versions": [
-        "1.94.0-slim-trixie"
+        "1.94.0-slim-trixie@sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
       ],
       "version": "26.0.0"
     },
     {
       "ref": "1228cff8022b804659750b94b315932b0e0f3f6a",
       "rust_versions": [
-        "1.94.0-slim-trixie"
+        "1.94.0-slim-trixie@sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
       ],
       "version": "26.1.0"
     }

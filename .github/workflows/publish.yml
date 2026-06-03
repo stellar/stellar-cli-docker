@@ -80,6 +80,7 @@ jobs:
           tag="$(./scripts/tag_names.py \
             --stellar-cli-version ${{ matrix.stellar_cli_version }} \
             --rust-version ${{ matrix.rust_base_key }} \
+            --rust-image-digest ${{ matrix.rust_image_digest }} \
             --platform ${{ matrix.platform }} \
             --stellar-cli-ref ${{ matrix.stellar_cli_ref }})"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

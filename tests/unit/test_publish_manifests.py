@@ -6,15 +6,18 @@ import publish_manifests
 
 
 def test_manifest_for_pair_composes_three_refs() -> None:
+    digest = "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
     list_ref, amd64_ref, arm64_ref = publish_manifests.manifest_for_pair(
         registry="docker.io/stellar/stellar-cli",
         cli="26.0.0",
         rust_key="1.94.0-slim-trixie",
+        rust_image_digest=digest,
         stellar_ref="abc123",
     )
-    assert list_ref == "docker.io/stellar/stellar-cli:26.0.0-abc123-rust1.94.0-slim-trixie"
-    assert amd64_ref == "docker.io/stellar/stellar-cli:26.0.0-abc123-rust1.94.0-slim-trixie-amd64"
-    assert arm64_ref == "docker.io/stellar/stellar-cli:26.0.0-abc123-rust1.94.0-slim-trixie-arm64"
+    base = "docker.io/stellar/stellar-cli:26.0.0-abc123-rust1.94.0-slim-trixie-f7bf1c266d9e48c"
+    assert list_ref == base
+    assert amd64_ref == f"{base}-amd64"
+    assert arm64_ref == f"{base}-arm64"
 
 
 def test_main_creates_manifest_for_each_rust_version(

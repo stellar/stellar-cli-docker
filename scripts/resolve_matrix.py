@@ -25,15 +25,15 @@ def build_matrix(data: dict, only_cli: str = "") -> dict:
         if only_cli and cli != only_cli:
             continue
         ref = entry["ref"]
-        for key in entry["rust_versions"]:
-            parsed = rust_keys.parse(key)
-            digest = builds.rust_image_digest(data, key)
+        for pin in entry["rust_versions"]:
+            label, digest = builds.split_entry(pin)
+            parsed = rust_keys.parse(label)
             for arch in ARCHES:
                 rows.append(
                     {
                         "arch": arch,
                         "platform": f"linux/{arch}",
-                        "rust_base_key": key,
+                        "rust_base_key": label,
                         "rust_base_suffix": parsed.suffix,
                         "rust_image_digest": digest,
                         "rust_version": parsed.version,

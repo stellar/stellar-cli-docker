@@ -5,6 +5,8 @@ import pytest
 
 import build_image
 
+DIGEST = "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
+
 
 def _completed() -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(args=[], returncode=0, stdout="")
@@ -24,6 +26,8 @@ def test_main_invokes_docker_with_build_args(
             "26.0.0",
             "--rust-version",
             "1.94.0-slim-trixie",
+            "--rust-image-digest",
+            DIGEST,
         ]
     )
 
@@ -32,14 +36,12 @@ def test_main_invokes_docker_with_build_args(
     assert args[0:3] == ["docker", "buildx", "build"]
     assert "--load" in args
     assert "--tag" in args
-    assert "stellar-cli:26.0.0-rust1.94.0-slim-trixie" in args
+    # Default local tag carries the short base-digest fragment.
+    assert "stellar-cli:26.0.0-rust1.94.0-slim-trixie-f7bf1c266d9e48c" in args
     assert "RUST_VERSION=1.94.0" in args
     assert "RUST_BASE_SUFFIX=slim-trixie" in args
     assert "STELLAR_CLI_VERSION=26.0.0" in args
-    assert any(
-        a.startswith("RUST_IMAGE_DIGEST=sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743")
-        for a in args
-    )
+    assert f"RUST_IMAGE_DIGEST={DIGEST}" in args
 
 
 def test_main_respects_platform_flag(monkeypatch: pytest.MonkeyPatch, minimal_builds: dict) -> None:
@@ -54,6 +56,8 @@ def test_main_respects_platform_flag(monkeypatch: pytest.MonkeyPatch, minimal_bu
             "26.0.0",
             "--rust-version",
             "1.94.0-slim-trixie",
+            "--rust-image-digest",
+            DIGEST,
             "--platform",
             "linux/arm64",
         ]
@@ -76,6 +80,8 @@ def test_main_respects_custom_tag(monkeypatch: pytest.MonkeyPatch, minimal_build
             "26.0.0",
             "--rust-version",
             "1.94.0-slim-trixie",
+            "--rust-image-digest",
+            DIGEST,
             "--tag",
             "my-local:test",
         ]
@@ -99,5 +105,7 @@ def test_main_dies_for_undeclared_pair(
                 "26.0.0",
                 "--rust-version",
                 "1.99.0-slim-trixie",
+                "--rust-image-digest",
+                DIGEST,
             ]
         )

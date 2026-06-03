@@ -73,7 +73,7 @@ multi-arch manifest list digest:
 ```sh
 # Find the per-arch digest for the architecture you used to build.
 # Pick any of the immutable manifest-list tags from the release notes,
-# e.g. :26.0.0-<ref>-rust1.94.0-slim-trixie, or the :26.0.0 alias:
+# e.g. :26.0.0-<ref15>-rust1.94.0-slim-trixie-<digest15>, or the :26.0.0 alias:
 docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0
 ```
 
@@ -89,9 +89,8 @@ compare the resulting WASM sha256.
 | `builds.json`                            | Source of truth for which (stellar-cli, rust base key) pairs we publish.                                                                                                                          |
 | `builds.schema.json`                     | JSON Schema for `builds.json`.                                                                                                                                                                    |
 | `scripts/build_image.py`                 | Local single-image build.                                                                                                                                                                         |
-| `scripts/validate_json.py`               | Validates every `*.json` for sorted keys and `builds.json` for schema + cross-field constraints.                                                                                                  |
-| `scripts/refresh_rust_digests.py`        | Fills blank `rust_image_digests` entries by inspecting `rust:<key>` upstream (where `<key>` is the composite `<rust>-<suffix>` form). Does not touch already-pinned digests unless asked per-key. |
-| `scripts/refresh_stellar_cli_digests.py` | Fills blank `stellar_cli_versions[].ref` entries by resolving the matching `v<version>` git tag in `stellar/stellar-cli`. Same per-target opt-in shape as the rust refresher.                     |
+| `scripts/validate_json.py`               | Validates every `*.json` for sorted keys and `builds.json` against the schema.                                                                                                                    |
+| `scripts/refresh.py`                     | For one `--stellar-cli-version`: picks the rust base labels, resolves the upstream cli ref and each base's index digest, and appends the fully-qualified pins `<label>@<digest>` (append-only; already-published pins are retained). |
 | `scripts/verify_image.py`                | Consumer-facing verifier. Wraps `gh attestation verify` for both the SLSA build provenance and the SPDX SBOM attestations against a per-arch image digest.                                        |
 | `scripts/lib/`                           | Shared Python helpers imported by the other scripts (builds.json IO, semver/key parsing, subprocess + adapter wrappers).                                                                          |
 
@@ -101,18 +100,18 @@ compare the resulting WASM sha256.
 # Validate builds.json.
 ./scripts/validate_json.py
 
-# Build a local image for a declared (cli, rust base) pair.
-./scripts/build_image.py --stellar-cli-version 26.0.0 --rust-version 1.94.0-slim-trixie
+# Build a local image for a declared (cli, rust base) pair. The rust base is
+# given as the label plus its pinned digest (copy the pin from builds.json).
+./scripts/build_image.py --stellar-cli-version 26.0.0 \
+  --rust-version 1.94.0-slim-trixie \
+  --rust-image-digest sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0
 
-# Smoke-test the built image.
-docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie --version
-docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie contract build --help
+# Smoke-test the built image (the tag carries the short base-digest fragment).
+docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie-f7bf1c266d9e48c --version
+docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie-f7bf1c266d9e48c contract build --help
 
-# Resolve blank rust base image digests (maintainer task).
-./scripts/refresh_rust_digests.py --dry-run
-
-# Resolve blank stellar-cli refs from upstream git tags (maintainer task).
-./scripts/refresh_stellar_cli_digests.py --dry-run
+# Resolve + append rust base pins and the cli ref for a version (maintainer task).
+./scripts/refresh.py --stellar-cli-version 26.1.0 --dry-run
 ```
 
 Requirements: `docker` (with `buildx`) and [`uv`](https://docs.astral.sh/uv/).

@@ -1,5 +1,5 @@
 {
-  "$comment": "JSON Schema for builds.json. Cross-field constraints that JSON Schema cannot express (rust_versions entries must be keys in rust_image_digests) are enforced by scripts/validate-json.sh.",
+  "$comment": "JSON Schema for builds.json. Each rust_versions[] entry is a fully-qualified rust base pin, '<rust_base_key>@<image_digest>', so a release records the exact base it was built against. The same label may appear with two different digests across (or within) releases; the published tag carries a short digest fragment to keep each immutable.",
   "$id": "https://github.com/stellar/stellar-cli-docker/builds.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9,14 +9,9 @@
       "pattern": "^[0-9a-f]{40}$",
       "type": "string"
     },
-    "image_digest": {
-      "description": "OCI image digest, including the algorithm prefix.",
-      "pattern": "^sha256:[0-9a-f]{64}$",
-      "type": "string"
-    },
-    "rust_base_key": {
-      "description": "Composite key identifying a Rust base image: rust toolchain version followed by the upstream rust:<v>-<suffix> tail (Debian codename, optionally prefixed by `slim-`). Example: 1.94.0-slim-trixie.",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[a-z][a-z0-9-]*$",
+    "rust_pin": {
+      "description": "A fully-qualified rust base pin: the composite rust base key (rust toolchain version + upstream rust:<v>-<suffix> tail, e.g. 1.94.0-slim-trixie) joined to the pinned multi-arch index digest with '@'. Example: 1.94.0-slim-trixie@sha256:<64 hex>.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+-[a-z][a-z0-9-]*@sha256:[0-9a-f]{64}$",
       "type": "string"
     },
     "semver": {
@@ -40,17 +35,6 @@
       ],
       "type": "string"
     },
-    "rust_image_digests": {
-      "additionalProperties": {
-        "$ref": "#/definitions/image_digest"
-      },
-      "description": "Map from rust base key (rust version + Debian codename, joined with a dash) to the pinned multi-arch index digest of the corresponding rust:<key> upstream image.",
-      "minProperties": 1,
-      "propertyNames": {
-        "$ref": "#/definitions/rust_base_key"
-      },
-      "type": "object"
-    },
     "stellar_cli_versions": {
       "description": "Each stellar-cli release we publish images for, with its explicit rust base pairings.",
       "items": {
@@ -61,9 +45,9 @@
             "description": "Upstream stellar/stellar-cli git commit SHA for this release. Source of truth; version is metadata."
           },
           "rust_versions": {
-            "description": "Append-only list of rust base keys this stellar-cli release was ever published against. Refreshes union the picker's output into the existing list; previously-published keys are retained so the file stays consistent with the immutable tags in the registry.",
+            "description": "Append-only list of fully-qualified rust base pins (<rust_base_key>@<image_digest>) this stellar-cli release was ever built against. Refreshes append the picker's freshly-resolved pins; previously-published pins are retained so the file stays consistent with the immutable tags in the registry. The same label may appear more than once with distinct digests (e.g. a rebuilt base) — each pin is its own immutable image.",
             "items": {
-              "$ref": "#/definitions/rust_base_key"
+              "$ref": "#/definitions/rust_pin"
             },
             "minItems": 1,
             "type": "array",
@@ -87,7 +71,6 @@
   },
   "required": [
     "default_distro",
-    "rust_image_digests",
     "stellar_cli_versions"
   ],
   "title": "stellar-cli-docker builds.json",

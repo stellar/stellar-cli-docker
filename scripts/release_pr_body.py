@@ -30,9 +30,9 @@ def compose(
     body = (
         "### What\n\n"
         f"Stage a {kind} for stellar-cli {version}. `builds.json` is updated with "
-        "the rust pairings auto-picked from the current last two minor stable "
-        "releases on `rust-lang/rust`, and any new `rust_image_digests` entries "
-        "are resolved.\n\n"
+        "the rust base pins auto-picked from the current last two minor stable "
+        "releases on `rust-lang/rust`; each pin resolves the upstream base image "
+        "digest at append time (`<label>@sha256:<digest>`).\n\n"
         "### Why\n\n"
         f"Triggered by @{actor} in {run_url}.\n\n"
         "### What is next\n\n"

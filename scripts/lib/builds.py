@@ -51,18 +51,33 @@ def stellar_cli_ref(data: dict[str, Any], version: str) -> str:
     return entry["ref"]
 
 
-def rust_image_digest(data: dict[str, Any], rust_key: str) -> str:
-    digest = data.get("rust_image_digests", {}).get(rust_key)
-    if not digest:
-        raise ValueError(f"no rust_image_digests entry for rust base key: {rust_key}")
-    return digest
+def split_entry(pin: str) -> tuple[str, str]:
+    """Split a rust base pin into its (label, digest) parts.
+
+    A pin is `<rust_base_key>@<image_digest>`, e.g.
+    `1.94.0-slim-trixie@sha256:<64 hex>`. The label drives the upstream
+    `rust:<label>` base and the published tag's `rust<label>` segment;
+    the digest pins the exact base bytes.
+    """
+    label, sep, digest = pin.partition("@")
+    if not sep or not digest:
+        raise ValueError(f"invalid rust base pin (expected <label>@<digest>): {pin}")
+    return label, digest
 
 
-def assert_pair_declared(data: dict[str, Any], cli: str, rust_key: str) -> None:
+def label_of(pin: str) -> str:
+    return split_entry(pin)[0]
+
+
+def digest_of(pin: str) -> str:
+    return split_entry(pin)[1]
+
+
+def assert_pair_declared(data: dict[str, Any], cli: str, rust_pin: str) -> None:
     entry = find_cli(data, cli)
-    if entry is None or rust_key not in entry.get("rust_versions", []):
+    if entry is None or rust_pin not in entry.get("rust_versions", []):
         raise ValueError(
-            f"stellar-cli {cli} is not declared with rust base key {rust_key} in builds.json"
+            f"stellar-cli {cli} is not declared with rust base pin {rust_pin} in builds.json"
         )
 
 
@@ -74,11 +89,17 @@ def derive_default_rust(data: dict[str, Any], cli: str) -> str:
     entry = find_cli(data, cli)
     if entry is None:
         raise ValueError(f"unknown stellar-cli version: {cli}")
-    matches = [k for k in entry.get("rust_versions", []) if k.endswith(f"-{suffix}")]
+    matches = [
+        (semver.parse(rust_keys.version_of(label_of(pin))), idx, pin)
+        for idx, pin in enumerate(entry.get("rust_versions", []))
+        if label_of(pin).endswith(f"-{suffix}")
+    ]
     if not matches:
         raise ValueError(
-            f"no rust_versions[] key matches default_distro {distro!r} "
+            f"no rust_versions[] pin matches default_distro {distro!r} "
             f"(suffix {suffix!r}) for stellar-cli {cli}"
         )
-    matches.sort(key=lambda k: semver.parse(rust_keys.version_of(k)))
-    return matches[-1]
+    # Highest rust version wins; among equal versions (a relabelled base), the
+    # last-appended pin — the freshest digest — wins.
+    matches.sort(key=lambda t: (t[0], t[1]))
+    return matches[-1][2]

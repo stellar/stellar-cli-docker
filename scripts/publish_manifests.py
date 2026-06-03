@@ -15,20 +15,25 @@ from lib import builds, common, docker_inspect
 
 
 def manifest_for_pair(
-    *, registry: str, cli: str, rust_key: str, stellar_ref: str
+    *, registry: str, cli: str, rust_key: str, rust_image_digest: str, stellar_ref: str
 ) -> tuple[str, str, str]:
     list_tag = tag_names.compose_tag(
-        stellar_cli_version=cli, rust_version=rust_key, stellar_cli_ref=stellar_ref
+        stellar_cli_version=cli,
+        rust_version=rust_key,
+        rust_image_digest=rust_image_digest,
+        stellar_cli_ref=stellar_ref,
     )
     amd64_tag = tag_names.compose_tag(
         stellar_cli_version=cli,
         rust_version=rust_key,
+        rust_image_digest=rust_image_digest,
         stellar_cli_ref=stellar_ref,
         platform="linux/amd64",
     )
     arm64_tag = tag_names.compose_tag(
         stellar_cli_version=cli,
         rust_version=rust_key,
+        rust_image_digest=rust_image_digest,
         stellar_cli_ref=stellar_ref,
         platform="linux/arm64",
     )
@@ -61,11 +66,13 @@ def main(argv: list[str] | None = None) -> int:
         common.die(f"no stellar_cli_versions entry for {args.stellar_cli_version}")
     stellar_ref = entry["ref"]
 
-    for rust_key in entry["rust_versions"]:
+    for pin in entry["rust_versions"]:
+        rust_key, rust_image_digest = builds.split_entry(pin)
         list_ref, amd64_ref, arm64_ref = manifest_for_pair(
             registry=args.registry,
             cli=args.stellar_cli_version,
             rust_key=rust_key,
+            rust_image_digest=rust_image_digest,
             stellar_ref=stellar_ref,
         )
 
