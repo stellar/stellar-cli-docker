@@ -34,8 +34,7 @@ jobs:
           rust="${pin%@*}"
           digest="${pin#*@}"
           tag="$(./scripts/tag_names.py \
-            --stellar-cli-version "$cli" --rust-version "$rust" \
-            --rust-image-digest "$digest")"
+            --stellar-cli-version "$cli" --rust-version "$rust")"
           {
             echo "cli=$cli"
             echo "rust=$rust"

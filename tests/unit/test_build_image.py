@@ -36,8 +36,7 @@ def test_main_invokes_docker_with_build_args(
     assert args[0:3] == ["docker", "buildx", "build"]
     assert "--load" in args
     assert "--tag" in args
-    # Default local tag carries the short base-digest fragment.
-    assert "stellar-cli:26.0.0-rust1.94.0-slim-trixie-f7bf1c266d9e48c" in args
+    assert "stellar-cli:26.0.0-rust1.94.0-slim-trixie" in args
     assert "RUST_VERSION=1.94.0" in args
     assert "RUST_BASE_SUFFIX=slim-trixie" in args
     assert "STELLAR_CLI_VERSION=26.0.0" in args

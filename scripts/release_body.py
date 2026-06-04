@@ -62,7 +62,7 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
     p(f"- `{registry}:latest` — newest declared cli, default Rust")
     p(f"- `{registry}:{cli}` — this cli, default Rust")
     p()
-    p(f"Immutable, pinned to stellar-cli `{stellar_ref}`:\n")
+    p(f"Pinned to stellar-cli `{stellar_ref}`:\n")
     for tag in pins_newest_first(rows):
         p(f"- `{registry}:{tag}` — multi-arch")
         for row in [r for r in rows if list_tag(r) == tag]:
@@ -77,8 +77,7 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
     for tag in pins_newest_first(rows):
         pin_rows = [r for r in rows if list_tag(r) == tag]
         key = pin_rows[0]["rust_base_key"]
-        base_digest = tag.rsplit("-", 1)[1]
-        p(f"### Rust {key} (base {base_digest})\n")
+        p(f"### Rust {key}\n")
         for row in pin_rows:
             p(f"- `linux/{row['arch']}`: `{registry}@{row['digest']}`")
         p("\nVerify:\n")

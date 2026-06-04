@@ -68,8 +68,8 @@ def test_load_metadata_sorts_by_rust_version_then_key_then_arch(tmp_path: Path) 
     ]
 
 
-def _pin_rows(label: str, version: str, digest15: str) -> list[dict]:
-    base = f"26.0.0-abc123-rust{label}-{digest15}"
+def _pin_rows(label: str, version: str) -> list[dict]:
+    base = f"26.0.0-rust{label}"
     return [
         {
             "arch": arch,
@@ -84,17 +84,17 @@ def _pin_rows(label: str, version: str, digest15: str) -> list[dict]:
 
 def test_pins_newest_first_orders_by_version_desc() -> None:
     rows = [
-        *_pin_rows("1.94.0-slim-trixie", "1.94.0", "a" * 15),
-        *_pin_rows("1.100.0-slim-trixie", "1.100.0", "b" * 15),
+        *_pin_rows("1.94.0-slim-trixie", "1.94.0"),
+        *_pin_rows("1.100.0-slim-trixie", "1.100.0"),
     ]
     assert release_body.pins_newest_first(rows) == [
-        "26.0.0-abc123-rust1.100.0-slim-trixie-" + "b" * 15,
-        "26.0.0-abc123-rust1.94.0-slim-trixie-" + "a" * 15,
+        "26.0.0-rust1.100.0-slim-trixie",
+        "26.0.0-rust1.94.0-slim-trixie",
     ]
 
 
 def test_emit_body_includes_expected_sections() -> None:
-    rows = _pin_rows("1.94.0-slim-trixie", "1.94.0", "f7bf1c266d9e48c")
+    rows = _pin_rows("1.94.0-slim-trixie", "1.94.0")
     body = release_body.emit_body(
         cli="26.0.0",
         rows=rows,
@@ -102,7 +102,7 @@ def test_emit_body_includes_expected_sections() -> None:
         repo="stellar/stellar-cli-docker",
         stellar_ref="abc123",
     )
-    list_tag = "26.0.0-abc123-rust1.94.0-slim-trixie-f7bf1c266d9e48c"
+    list_tag = "26.0.0-rust1.94.0-slim-trixie"
     assert "# stellar-cli 26.0.0" in body
     assert "## Tags" in body
     assert "docker.io/stellar/stellar-cli:latest" in body
@@ -119,10 +119,10 @@ def test_emit_body_includes_expected_sections() -> None:
     assert "## Assets" in body
 
 
-def test_emit_body_two_digests_same_label_render_distinctly() -> None:
+def test_emit_body_two_labels_render_as_two_sections() -> None:
     rows = [
-        *_pin_rows("1.94.0-slim-trixie", "1.94.0", "a" * 15),
-        *_pin_rows("1.94.0-slim-trixie", "1.94.0", "c" * 15),
+        *_pin_rows("1.95.0-slim-trixie", "1.95.0"),
+        *_pin_rows("1.96.0-slim-trixie", "1.96.0"),
     ]
     body = release_body.emit_body(
         cli="26.0.0",
@@ -131,10 +131,10 @@ def test_emit_body_two_digests_same_label_render_distinctly() -> None:
         repo="stellar/stellar-cli-docker",
         stellar_ref="abc123",
     )
-    # Both pins surface as their own multi-arch tag and their own section.
-    assert "26.0.0-abc123-rust1.94.0-slim-trixie-" + "a" * 15 in body
-    assert "26.0.0-abc123-rust1.94.0-slim-trixie-" + "c" * 15 in body
-    assert body.count("### Rust 1.94.0-slim-trixie") == 2
+    assert "26.0.0-rust1.95.0-slim-trixie" in body
+    assert "26.0.0-rust1.96.0-slim-trixie" in body
+    assert "### Rust 1.95.0-slim-trixie" in body
+    assert "### Rust 1.96.0-slim-trixie" in body
     # Each shell-continuation line in the cosign block must end with a single
     # backslash, not two — `\\` in the rendered markdown would land as a
     # literal `\\` in the user's terminal instead of a line continuation.

@@ -3,8 +3,7 @@
 
 For one stellar-cli version, walks its rust_versions[] and runs
 `docker buildx imagetools create` to assemble the multi-arch list from
-the per-arch tags. Existing manifest lists are skipped with a warning —
-the per-arch tags are immutable, so re-creating the list is a no-op.
+the per-arch tags. Tags are mutable, so an existing list is overwritten.
 """
 
 import argparse
@@ -14,28 +13,13 @@ import tag_names
 from lib import builds, common, docker_inspect
 
 
-def manifest_for_pair(
-    *, registry: str, cli: str, rust_key: str, rust_image_digest: str, stellar_ref: str
-) -> tuple[str, str, str]:
-    list_tag = tag_names.compose_tag(
-        stellar_cli_version=cli,
-        rust_version=rust_key,
-        rust_image_digest=rust_image_digest,
-        stellar_cli_ref=stellar_ref,
-    )
+def manifest_for_pair(*, registry: str, cli: str, rust_key: str) -> tuple[str, str, str]:
+    list_tag = tag_names.compose_tag(stellar_cli_version=cli, rust_version=rust_key)
     amd64_tag = tag_names.compose_tag(
-        stellar_cli_version=cli,
-        rust_version=rust_key,
-        rust_image_digest=rust_image_digest,
-        stellar_cli_ref=stellar_ref,
-        platform="linux/amd64",
+        stellar_cli_version=cli, rust_version=rust_key, platform="linux/amd64"
     )
     arm64_tag = tag_names.compose_tag(
-        stellar_cli_version=cli,
-        rust_version=rust_key,
-        rust_image_digest=rust_image_digest,
-        stellar_cli_ref=stellar_ref,
-        platform="linux/arm64",
+        stellar_cli_version=cli, rust_version=rust_key, platform="linux/arm64"
     )
     return (
         f"{registry}:{list_tag}",
@@ -64,28 +48,14 @@ def main(argv: list[str] | None = None) -> int:
     entry = builds.find_cli(data, args.stellar_cli_version)
     if entry is None:
         common.die(f"no stellar_cli_versions entry for {args.stellar_cli_version}")
-    stellar_ref = entry["ref"]
 
     for pin in entry["rust_versions"]:
-        rust_key, rust_image_digest = builds.split_entry(pin)
+        rust_key = builds.label_of(pin)
         list_ref, amd64_ref, arm64_ref = manifest_for_pair(
             registry=args.registry,
             cli=args.stellar_cli_version,
             rust_key=rust_key,
-            rust_image_digest=rust_image_digest,
-            stellar_ref=stellar_ref,
         )
-
-        if docker_inspect.exists(list_ref):
-            common.log(
-                f"::warning::manifest list {list_ref} already exists; "
-                "skipping (lists are immutable)"
-            )
-            common.step_summary(
-                "## ⚠️ Manifest list skipped — already published\n\n"
-                f"`{list_ref}` was already in the registry."
-            )
-            continue
 
         common.log(f"::group::manifest {list_ref}")
         if args.dry_run:

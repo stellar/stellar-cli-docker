@@ -1,16 +1,14 @@
 #!/usr/bin/env -S uv run python
-"""Compose canonical image tags from cli version, rust base key, base image
-digest, optional platform, and optional stellar-cli git ref.
+"""Compose canonical image tags from cli version, rust base key, and platform.
 
 Tag scheme:
-    multi-arch list:   <cli>[-<ref15>]-rust<key>-<digest15>
-    per-arch:          <cli>[-<ref15>]-rust<key>-<digest15>-<arch>
+    multi-arch list:   <cli>-rust<key>
+    per-arch:          <cli>-rust<key>-<arch>
 
-`ref15`/`digest15` are the first 15 hex chars of the stellar-cli git ref
-and of the rust base image digest (the `sha256:` algorithm prefix stripped).
-Both full values stay authoritative in builds.json; the tag carries short
-fragments so each (cli, ref, base label, base digest) resolves to a distinct,
-immutable tag without blowing the 128-char tag limit.
+The base image digest and stellar-cli ref stay authoritative in builds.json
+(and pin the build's FROM), but they are not encoded in the published tag —
+the tag is a plain, human-readable pointer. Reproducibility is anchored by the
+per-arch image content digest, which is what SEP-58 `bldimg` cites.
 
 Output: exactly one tag on stdout, with no registry/repo prefix.
 """
@@ -28,28 +26,13 @@ _ARCH_FOR_PLATFORM = {
 _SHORT = 15
 
 
-def _short_ref(ref: str) -> str:
-    return ref[:_SHORT]
-
-
 def short_digest(digest: str) -> str:
     """First 15 hex chars of an image digest, with any `sha256:` prefix stripped."""
     return digest.removeprefix("sha256:")[:_SHORT]
 
 
-def compose_tag(
-    *,
-    stellar_cli_version: str,
-    rust_version: str,
-    rust_image_digest: str,
-    platform: str = "",
-    stellar_cli_ref: str = "",
-) -> str:
-    tag = stellar_cli_version
-    if stellar_cli_ref:
-        tag = f"{tag}-{_short_ref(stellar_cli_ref)}"
-    tag = f"{tag}-rust{rust_version}"
-    tag = f"{tag}-{short_digest(rust_image_digest)}"
+def compose_tag(*, stellar_cli_version: str, rust_version: str, platform: str = "") -> str:
+    tag = f"{stellar_cli_version}-rust{rust_version}"
     if platform:
         arch = _ARCH_FOR_PLATFORM.get(platform)
         if arch is None:
@@ -62,9 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--stellar-cli-version", required=True, metavar="V")
     parser.add_argument("--rust-version", required=True, metavar="KEY")
-    parser.add_argument("--rust-image-digest", required=True, metavar="DIGEST")
     parser.add_argument("--platform", default="", metavar="P")
-    parser.add_argument("--stellar-cli-ref", default="", metavar="SHA")
     return parser
 
 
@@ -74,9 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         tag = compose_tag(
             stellar_cli_version=args.stellar_cli_version,
             rust_version=args.rust_version,
-            rust_image_digest=args.rust_image_digest,
             platform=args.platform,
-            stellar_cli_ref=args.stellar_cli_ref,
         )
     except ValueError as exc:
         common.die(str(exc))

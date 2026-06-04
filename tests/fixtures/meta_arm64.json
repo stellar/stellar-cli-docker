@@ -1,9 +1,9 @@
 {
   "arch": "arm64",
   "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-  "image": "docker.io/stellar/stellar-cli:26.0.0-abc123-rust1.94.0-slim-trixie-f7bf1c266d9e48c-arm64",
+  "image": "docker.io/stellar/stellar-cli:26.0.0-rust1.94.0-slim-trixie-arm64",
   "rust_base_key": "1.94.0-slim-trixie",
   "rust_version": "1.94.0",
   "stellar_cli_version": "26.0.0",
-  "tag": "26.0.0-abc123-rust1.94.0-slim-trixie-f7bf1c266d9e48c-arm64"
+  "tag": "26.0.0-rust1.94.0-slim-trixie-arm64"
 }

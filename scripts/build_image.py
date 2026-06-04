@@ -42,7 +42,6 @@ def main(argv: list[str] | None = None) -> int:
     tag = args.tag or "stellar-cli:" + tag_names.compose_tag(
         stellar_cli_version=args.stellar_cli_version,
         rust_version=args.rust_version,
-        rust_image_digest=rust_digest,
     )
     build_date = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 

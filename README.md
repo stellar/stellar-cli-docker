@@ -72,8 +72,8 @@ multi-arch manifest list digest:
 
 ```sh
 # Find the per-arch digest for the architecture you used to build.
-# Pick any of the immutable manifest-list tags from the release notes,
-# e.g. :26.0.0-<ref15>-rust1.94.0-slim-trixie-<digest15>, or the :26.0.0 alias:
+# Pick any of the manifest-list tags from the release notes,
+# e.g. :26.0.0-rust1.94.0-slim-trixie, or the :26.0.0 alias:
 docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0
 ```
 
@@ -106,9 +106,9 @@ compare the resulting WASM sha256.
   --rust-version 1.94.0-slim-trixie \
   --rust-image-digest sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0
 
-# Smoke-test the built image (the tag carries the short base-digest fragment).
-docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie-f7bf1c266d9e48c --version
-docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie-f7bf1c266d9e48c contract build --help
+# Smoke-test the built image.
+docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie --version
+docker run --rm stellar-cli:26.0.0-rust1.94.0-slim-trixie contract build --help
 
 # Resolve + append rust base pins and the cli ref for a version (maintainer task).
 ./scripts/refresh.py --stellar-cli-version 26.1.0 --dry-run
@@ -120,8 +120,8 @@ Requirements: `docker` (with `buildx`) and [`uv`](https://docs.astral.sh/uv/).
 
 Maintainers: see [`RELEASE.md`](./RELEASE.md) for the end-to-end release
 process — how `builds.json` works, the PR-driven release flow that fires
-the publish workflow when a GitHub Release is published, the tag-
-immutability guard, and how to verify a freshly published image.
+the publish workflow when a GitHub Release is published, the published tag
+scheme, and how to verify a freshly published image.
 
 ## License
 
