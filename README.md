@@ -67,8 +67,8 @@ docker run --rm \
 ## Verifiable builds ([SEP-58](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0058.md))
 
 For verifiable references, **always pin to a per-arch single-architecture
-digest**, never to a moving tag like `:latest` or `:<cli>`, and never to a
-multi-arch manifest list digest:
+digest (`@sha256:…`)** — it is the only stable reference. Never use a tag or a
+multi-arch manifest list digest in `bldimg`:
 
 ```sh
 # Find the per-arch digest for the architecture you used to build.
@@ -83,16 +83,16 @@ compare the resulting WASM sha256.
 
 ## Repo layout
 
-| Path                                     | What                                                                                                                                                                                              |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Dockerfile`                             | Two-stage builder + runtime, args-driven.                                                                                                                                                         |
-| `builds.json`                            | Source of truth for which (stellar-cli, rust base key) pairs we publish.                                                                                                                          |
-| `builds.schema.json`                     | JSON Schema for `builds.json`.                                                                                                                                                                    |
-| `scripts/build_image.py`                 | Local single-image build.                                                                                                                                                                         |
-| `scripts/validate_json.py`               | Validates every `*.json` for sorted keys and `builds.json` against the schema.                                                                                                                    |
-| `scripts/refresh.py`                     | For one `--stellar-cli-version`: picks the rust base labels, resolves the upstream cli ref and each base's index digest, and appends the fully-qualified pins `<label>@<digest>` (append-only; already-published pins are retained). |
-| `scripts/verify_image.py`                | Consumer-facing verifier. Wraps `gh attestation verify` for both the SLSA build provenance and the SPDX SBOM attestations against a per-arch image digest.                                        |
-| `scripts/lib/`                           | Shared Python helpers imported by the other scripts (builds.json IO, semver/key parsing, subprocess + adapter wrappers).                                                                          |
+| Path                       | What                                                                                                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Dockerfile`               | Two-stage builder + runtime, args-driven.                                                                                                                                                                                            |
+| `builds.json`              | Source of truth for which (stellar-cli, rust base key) pairs we publish.                                                                                                                                                             |
+| `builds.schema.json`       | JSON Schema for `builds.json`.                                                                                                                                                                                                       |
+| `scripts/build_image.py`   | Local single-image build.                                                                                                                                                                                                            |
+| `scripts/validate_json.py` | Validates every `*.json` for sorted keys and `builds.json` against the schema.                                                                                                                                                       |
+| `scripts/refresh.py`       | For one `--stellar-cli-version`: picks the rust base labels, resolves the upstream cli ref and each base's index digest, and appends the fully-qualified pins `<label>@<digest>` (append-only; already-published pins are retained). |
+| `scripts/verify_image.py`  | Consumer-facing verifier. Wraps `gh attestation verify` for both the SLSA build provenance and the SPDX SBOM attestations against a per-arch image digest.                                                                           |
+| `scripts/lib/`             | Shared Python helpers imported by the other scripts (builds.json IO, semver/key parsing, subprocess + adapter wrappers).                                                                                                             |
 
 ## Local development
 

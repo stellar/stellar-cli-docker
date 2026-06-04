@@ -29,6 +29,14 @@ def test_refresh_title_and_body() -> None:
     assert "release/v26.0.0-1" in body
 
 
+def test_body_describes_mutable_publish_behavior() -> None:
+    _, body = _compose()
+    # Tags are mutable now — the body must not claim pairs are skipped/immutable.
+    assert "skipped" not in body
+    assert "immutable" not in body
+    assert "mutable" in body
+
+
 def test_body_carries_release_url_with_correct_target() -> None:
     _, body = _compose()
     assert "https://github.com/stellar/stellar-cli-docker/releases/new" in body
