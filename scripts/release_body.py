@@ -70,8 +70,8 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
 
     p("\n## Per-architecture digests (for SEP-58 `bldimg`)\n")
     p(
-        f"Use the per-architecture digest when recording `bldimg` in your contract "
-        f"metadata. Never use a moving tag like `:latest` or `:{cli}`.\n"
+        "Use the per-architecture digest when recording `bldimg` in your contract "
+        "metadata. Never use a tag — only the per-arch digest is a stable reference.\n"
     )
 
     for tag in pins_newest_first(rows):

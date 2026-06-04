@@ -117,6 +117,9 @@ def test_emit_body_includes_expected_sections() -> None:
     assert "docker buildx imagetools inspect" in body
     assert "## Verification" in body
     assert "## Assets" in body
+    # Every tag is mutable; only the per-arch digest is a stable bldimg reference.
+    assert "moving tag" not in body
+    assert "only the per-arch digest is a stable" in body
 
 
 def test_emit_body_two_labels_render_as_two_sections() -> None:
