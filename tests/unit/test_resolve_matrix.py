@@ -47,7 +47,9 @@ def test_build_matrix_row_id_carries_digest_fragment(minimal_builds: dict) -> No
     assert row["rust_base_id"] == "1.94.0-slim-trixie-f7bf1c266d9e48c"
 
 
-def test_build_matrix_same_label_two_digests_distinct_ids() -> None:
+def test_build_matrix_same_label_builds_only_last_pin() -> None:
+    # builds.json keeps the full history, but only the newest pin per label
+    # (last in the list) is published, so the mutable tag is deterministic.
     data = {
         "default_distro": "trixie",
         "stellar_cli_versions": [
@@ -61,11 +63,11 @@ def test_build_matrix_same_label_two_digests_distinct_ids() -> None:
             }
         ],
     }
-    ids = {row["rust_base_id"] for row in resolve_matrix.build_matrix(data)["include"]}
-    assert ids == {
-        "1.94.0-slim-trixie-" + "a" * 15,
-        "1.94.0-slim-trixie-" + "b" * 15,
-    }
+    rows = resolve_matrix.build_matrix(data)["include"]
+    # Only the last pin builds (one per arch); the superseded pin is not built.
+    assert len(rows) == 2
+    assert {r["rust_base_id"] for r in rows} == {"1.94.0-slim-trixie-" + "b" * 15}
+    assert {r["rust_image_digest"] for r in rows} == {"sha256:" + "b" * 64}
 
 
 def test_build_matrix_parses_rust_key(minimal_builds: dict) -> None:

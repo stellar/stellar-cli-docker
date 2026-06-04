@@ -26,7 +26,11 @@ def build_matrix(data: dict, only_cli: str = "") -> dict:
         if only_cli and cli != only_cli:
             continue
         ref = entry["ref"]
-        for pin in entry["rust_versions"]:
+        # The published tag is label-only, so only the newest pin per label is
+        # built — the last occurrence in rust_versions wins. builds.json keeps
+        # the superseded pins as history; they are not rebuilt or republished.
+        latest_per_label = {builds.label_of(pin): pin for pin in entry["rust_versions"]}
+        for pin in latest_per_label.values():
             label, digest = builds.split_entry(pin)
             parsed = rust_keys.parse(label)
             rust_base_id = f"{label}-{tag_names.short_digest(digest)}"
