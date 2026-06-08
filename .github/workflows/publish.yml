@@ -244,13 +244,13 @@ jobs:
 
           token=$(jq -n --arg u "$DOCKERHUB_USERNAME" --arg p "$DOCKERHUB_TOKEN" \
             '{username: $u, password: $p}' | \
-            curl -sf -X POST "https://hub.docker.com/v2/users/login/" \
+            curl -sSf -X POST "https://hub.docker.com/v2/users/login/" \
               -H "Content-Type: application/json" \
               -d @- \
-            | jq -r .token)
+            | jq -er .token)
 
           jq -n --arg desc "$(cat ./docker/README.md)" '{"full_description": $desc}' | \
-            curl -sf -X PATCH "https://hub.docker.com/v2/repositories/${repo}/" \
+            curl -sSf -X PATCH "https://hub.docker.com/v2/repositories/${repo}/" \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${token}" \
               -d @- \
