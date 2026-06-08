@@ -69,32 +69,61 @@ def test_stellar_cli_ref_unknown(multi_cli_builds: dict) -> None:
         builds.stellar_cli_ref(multi_cli_builds, "99.0.0")
 
 
-def test_rust_image_digest_known(multi_cli_builds: dict) -> None:
-    digest = builds.rust_image_digest(multi_cli_builds, "1.94.0-slim-trixie")
-    assert digest.startswith("sha256:")
+_DIGEST_94 = "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
+_PIN_94 = f"1.94.0-slim-trixie@{_DIGEST_94}"
 
 
-def test_rust_image_digest_unknown(multi_cli_builds: dict) -> None:
-    with pytest.raises(ValueError, match="no rust_image_digests entry"):
-        builds.rust_image_digest(multi_cli_builds, "1.0.0-nope")
+def test_split_entry_returns_label_and_digest() -> None:
+    label, digest = builds.split_entry(_PIN_94)
+    assert label == "1.94.0-slim-trixie"
+    assert digest == "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
+
+
+def test_label_of_and_digest_of() -> None:
+    assert builds.label_of(_PIN_94) == "1.94.0-slim-trixie"
+    assert builds.digest_of(_PIN_94).startswith("sha256:")
+
+
+def test_split_entry_rejects_bare_label() -> None:
+    with pytest.raises(ValueError, match="invalid rust base pin"):
+        builds.split_entry("1.94.0-slim-trixie")
 
 
 def test_assert_pair_declared_passes(multi_cli_builds: dict) -> None:
-    builds.assert_pair_declared(multi_cli_builds, "26.0.0", "1.94.0-slim-trixie")
+    builds.assert_pair_declared(multi_cli_builds, "26.0.0", _PIN_94)
 
 
 def test_assert_pair_declared_rejects_unknown_cli(multi_cli_builds: dict) -> None:
     with pytest.raises(ValueError, match="not declared"):
-        builds.assert_pair_declared(multi_cli_builds, "99.0.0", "1.94.0-slim-trixie")
+        builds.assert_pair_declared(multi_cli_builds, "99.0.0", _PIN_94)
 
 
 def test_assert_pair_declared_rejects_undeclared_pair(multi_cli_builds: dict) -> None:
     with pytest.raises(ValueError, match="not declared"):
-        builds.assert_pair_declared(multi_cli_builds, "25.1.0", "1.94.0-slim-trixie")
+        builds.assert_pair_declared(multi_cli_builds, "25.1.0", _PIN_94)
 
 
 def test_derive_default_rust_picks_highest_matching_suffix(multi_cli_builds: dict) -> None:
-    assert builds.derive_default_rust(multi_cli_builds, "26.0.0") == "1.94.0-slim-trixie"
+    assert builds.derive_default_rust(multi_cli_builds, "26.0.0") == _PIN_94
+
+
+def test_derive_default_rust_newest_digest_for_repeated_label() -> None:
+    # When a label carries two digests, the newest (last appended) wins.
+    newest = "1.94.0-slim-trixie@sha256:" + "b" * 64
+    data = {
+        "default_distro": "trixie",
+        "stellar_cli_versions": [
+            {
+                "ref": "a" * 40,
+                "version": "26.0.0",
+                "rust_versions": [
+                    "1.94.0-slim-trixie@sha256:" + "a" * 64,
+                    newest,
+                ],
+            }
+        ],
+    }
+    assert builds.derive_default_rust(data, "26.0.0") == newest
 
 
 def test_derive_default_rust_skips_non_matching_suffix(multi_cli_builds: dict) -> None:

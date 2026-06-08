@@ -46,7 +46,9 @@ def test_main_rust_mode(
 ) -> None:
     monkeypatch.setattr(newest_pair.builds, "load", lambda: multi_cli_builds)
     assert newest_pair.main(["--rust-version"]) == 0
-    assert capsys.readouterr().out == "1.94.0-slim-trixie\n"
+    assert capsys.readouterr().out == (
+        "1.94.0-slim-trixie@sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0\n"
+    )
 
 
 def test_main_requires_one_mode() -> None:

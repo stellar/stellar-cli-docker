@@ -74,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--image", required=True, metavar="REF")
     parser.add_argument("--stellar-cli-version", required=True, metavar="V")
     parser.add_argument("--rust-version", required=True, metavar="KEY")
+    parser.add_argument("--rust-image-digest", required=True, metavar="DIGEST")
     return parser
 
 
@@ -84,7 +85,6 @@ def main(argv: list[str] | None = None) -> int:
     data = builds.load()
     try:
         parsed = rust_keys.parse(args.rust_version)
-        rust_image_digest = builds.rust_image_digest(data, args.rust_version)
         stellar_ref = builds.stellar_cli_ref(data, args.stellar_cli_version)
     except ValueError as exc:
         common.die(str(exc))
@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         stellar_ref=stellar_ref,
         rust_version=parsed.version,
         rust_base_suffix=parsed.suffix,
-        rust_image_digest=rust_image_digest,
+        rust_image_digest=args.rust_image_digest,
     )
 
     if ok:

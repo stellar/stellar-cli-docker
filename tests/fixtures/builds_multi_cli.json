@@ -2,24 +2,19 @@
   "$comment": "Two clis, two rust bases (trixie+bookworm), used to exercise the picker.",
   "$schema": "../../builds.schema.json",
   "default_distro": "trixie",
-  "rust_image_digests": {
-    "1.90.0-slim-bookworm": "sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9",
-    "1.93.0-slim-trixie": "sha256:760ad1d638d70ebbd0c61e06210e1289cbe45ff6425e3ea6e01241de3e14d08e",
-    "1.94.0-slim-trixie": "sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
-  },
   "stellar_cli_versions": [
     {
       "ref": "a048a57a75762458b487052e0021ea704a926bee",
       "rust_versions": [
-        "1.90.0-slim-bookworm"
+        "1.90.0-slim-bookworm@sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9"
       ],
       "version": "25.1.0"
     },
     {
       "ref": "60f7458e7ecffddf2f2d91dc6d0d2db4fab03ecc",
       "rust_versions": [
-        "1.93.0-slim-trixie",
-        "1.94.0-slim-trixie"
+        "1.93.0-slim-trixie@sha256:760ad1d638d70ebbd0c61e06210e1289cbe45ff6425e3ea6e01241de3e14d08e",
+        "1.94.0-slim-trixie@sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0"
       ],
       "version": "26.0.0"
     }

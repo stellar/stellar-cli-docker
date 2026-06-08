@@ -68,33 +68,33 @@ def test_load_metadata_sorts_by_rust_version_then_key_then_arch(tmp_path: Path) 
     ]
 
 
-def test_rust_keys_newest_first_orders_by_version_desc() -> None:
-    rows = [
-        {"rust_base_key": "1.94.0-slim-trixie", "rust_version": "1.94.0"},
-        {"rust_base_key": "1.100.0-slim-trixie", "rust_version": "1.100.0"},
-        {"rust_base_key": "1.94.0-slim-trixie", "rust_version": "1.94.0"},  # dup
+def _pin_rows(label: str, version: str) -> list[dict]:
+    base = f"26.0.0-rust{label}"
+    return [
+        {
+            "arch": arch,
+            "digest": "sha256:" + char * 64,
+            "rust_base_key": label,
+            "rust_version": version,
+            "tag": f"{base}-{arch}",
+        }
+        for arch, char in (("amd64", "1"), ("arm64", "2"))
     ]
-    assert release_body.rust_keys_newest_first(rows) == [
-        "1.100.0-slim-trixie",
-        "1.94.0-slim-trixie",
+
+
+def test_pins_newest_first_orders_by_version_desc() -> None:
+    rows = [
+        *_pin_rows("1.94.0-slim-trixie", "1.94.0"),
+        *_pin_rows("1.100.0-slim-trixie", "1.100.0"),
+    ]
+    assert release_body.pins_newest_first(rows) == [
+        "26.0.0-rust1.100.0-slim-trixie",
+        "26.0.0-rust1.94.0-slim-trixie",
     ]
 
 
 def test_emit_body_includes_expected_sections() -> None:
-    rows = [
-        {
-            "arch": "amd64",
-            "digest": "sha256:" + "1" * 64,
-            "rust_base_key": "1.94.0-slim-trixie",
-            "rust_version": "1.94.0",
-        },
-        {
-            "arch": "arm64",
-            "digest": "sha256:" + "2" * 64,
-            "rust_base_key": "1.94.0-slim-trixie",
-            "rust_version": "1.94.0",
-        },
-    ]
+    rows = _pin_rows("1.94.0-slim-trixie", "1.94.0")
     body = release_body.emit_body(
         cli="26.0.0",
         rows=rows,
@@ -102,10 +102,12 @@ def test_emit_body_includes_expected_sections() -> None:
         repo="stellar/stellar-cli-docker",
         stellar_ref="abc123",
     )
+    list_tag = "26.0.0-rust1.94.0-slim-trixie"
     assert "# stellar-cli 26.0.0" in body
     assert "## Tags" in body
     assert "docker.io/stellar/stellar-cli:latest" in body
-    assert "26.0.0-abc123-rust1.94.0-slim-trixie" in body
+    assert f"docker.io/stellar/stellar-cli:{list_tag}" in body
+    assert f"{list_tag}-amd64" in body
     assert "## Per-architecture digests" in body
     assert "### Rust 1.94.0-slim-trixie" in body
     assert "linux/amd64" in body
@@ -115,6 +117,27 @@ def test_emit_body_includes_expected_sections() -> None:
     assert "docker buildx imagetools inspect" in body
     assert "## Verification" in body
     assert "## Assets" in body
+    # Every tag is mutable; only the per-arch digest is a stable bldimg reference.
+    assert "moving tag" not in body
+    assert "only the per-arch digest is a stable" in body
+
+
+def test_emit_body_two_labels_render_as_two_sections() -> None:
+    rows = [
+        *_pin_rows("1.95.0-slim-trixie", "1.95.0"),
+        *_pin_rows("1.96.0-slim-trixie", "1.96.0"),
+    ]
+    body = release_body.emit_body(
+        cli="26.0.0",
+        rows=rows,
+        registry="docker.io/stellar/stellar-cli",
+        repo="stellar/stellar-cli-docker",
+        stellar_ref="abc123",
+    )
+    assert "26.0.0-rust1.95.0-slim-trixie" in body
+    assert "26.0.0-rust1.96.0-slim-trixie" in body
+    assert "### Rust 1.95.0-slim-trixie" in body
+    assert "### Rust 1.96.0-slim-trixie" in body
     # Each shell-continuation line in the cosign block must end with a single
     # backslash, not two — `\\` in the rendered markdown would land as a
     # literal `\\` in the user's terminal instead of a line continuation.

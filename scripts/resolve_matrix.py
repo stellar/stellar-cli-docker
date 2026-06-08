@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 
+import tag_names
 from lib import builds, common, rust_keys
 
 ARCHES = ("amd64", "arm64")
@@ -25,15 +26,21 @@ def build_matrix(data: dict, only_cli: str = "") -> dict:
         if only_cli and cli != only_cli:
             continue
         ref = entry["ref"]
-        for key in entry["rust_versions"]:
-            parsed = rust_keys.parse(key)
-            digest = builds.rust_image_digest(data, key)
+        # The published tag is label-only, so only the newest pin per label is
+        # built — the last occurrence in rust_versions wins. builds.json keeps
+        # the superseded pins as history; they are not rebuilt or republished.
+        latest_per_label = {builds.label_of(pin): pin for pin in entry["rust_versions"]}
+        for pin in latest_per_label.values():
+            label, digest = builds.split_entry(pin)
+            parsed = rust_keys.parse(label)
+            rust_base_id = f"{label}-{tag_names.short_digest(digest)}"
             for arch in ARCHES:
                 rows.append(
                     {
                         "arch": arch,
                         "platform": f"linux/{arch}",
-                        "rust_base_key": key,
+                        "rust_base_id": rust_base_id,
+                        "rust_base_key": label,
                         "rust_base_suffix": parsed.suffix,
                         "rust_image_digest": digest,
                         "rust_version": parsed.version,

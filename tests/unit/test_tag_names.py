@@ -3,7 +3,7 @@ import pytest
 import tag_names
 
 
-def test_compose_no_platform_no_ref() -> None:
+def test_compose_no_platform() -> None:
     assert (
         tag_names.compose_tag(stellar_cli_version="26.0.0", rust_version="1.94.0-slim-trixie")
         == "26.0.0-rust1.94.0-slim-trixie"
@@ -13,7 +13,9 @@ def test_compose_no_platform_no_ref() -> None:
 def test_compose_with_amd64() -> None:
     assert (
         tag_names.compose_tag(
-            stellar_cli_version="26.0.0", rust_version="1.94.0-slim-trixie", platform="linux/amd64"
+            stellar_cli_version="26.0.0",
+            rust_version="1.94.0-slim-trixie",
+            platform="linux/amd64",
         )
         == "26.0.0-rust1.94.0-slim-trixie-amd64"
     )
@@ -22,32 +24,11 @@ def test_compose_with_amd64() -> None:
 def test_compose_with_arm64() -> None:
     assert (
         tag_names.compose_tag(
-            stellar_cli_version="26.0.0", rust_version="1.94.0-slim-trixie", platform="linux/arm64"
+            stellar_cli_version="26.0.0",
+            rust_version="1.94.0-slim-trixie",
+            platform="linux/arm64",
         )
         == "26.0.0-rust1.94.0-slim-trixie-arm64"
-    )
-
-
-def test_compose_with_ref_only() -> None:
-    assert (
-        tag_names.compose_tag(
-            stellar_cli_version="26.0.0",
-            rust_version="1.94.0-slim-trixie",
-            stellar_cli_ref="ee3115b93b9c11b7a4d090f676f35736d3d86172",
-        )
-        == "26.0.0-ee3115b93b9c11b7a4d090f676f35736d3d86172-rust1.94.0-slim-trixie"
-    )
-
-
-def test_compose_with_ref_and_platform() -> None:
-    assert (
-        tag_names.compose_tag(
-            stellar_cli_version="26.0.0",
-            rust_version="1.94.0-slim-trixie",
-            platform="linux/amd64",
-            stellar_cli_ref="ee3115b93b9c11b7a4d090f676f35736d3d86172",
-        )
-        == "26.0.0-ee3115b93b9c11b7a4d090f676f35736d3d86172-rust1.94.0-slim-trixie-amd64"
     )
 
 

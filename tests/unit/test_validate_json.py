@@ -28,24 +28,41 @@ def test_has_sorted_keys_handles_primitives() -> None:
     assert validate_json.has_sorted_keys(None)
 
 
-def test_check_cross_field_constraints_passes(multi_cli_builds: dict) -> None:
-    assert validate_json.check_cross_field_constraints(multi_cli_builds)
-
-
-def test_check_cross_field_constraints_detects_orphan(fixtures_dir: Path) -> None:
-    data = json.loads((fixtures_dir / "builds_orphan_rust.json").read_text())
-    assert not validate_json.check_cross_field_constraints(data)
+def _schema(fixtures_dir: Path) -> dict:
+    return json.loads((fixtures_dir.parent.parent / "builds.schema.json").read_text())
 
 
 def test_check_schema_passes_for_valid(minimal_builds: dict, fixtures_dir: Path) -> None:
-    schema = json.loads((fixtures_dir.parent.parent / "builds.schema.json").read_text())
-    assert validate_json.check_schema(minimal_builds, schema)
+    assert validate_json.check_schema(minimal_builds, _schema(fixtures_dir))
 
 
 def test_check_schema_rejects_missing_required(fixtures_dir: Path) -> None:
-    schema = json.loads((fixtures_dir.parent.parent / "builds.schema.json").read_text())
-    broken = {"default_distro": "trixie"}  # missing rust_image_digests, stellar_cli_versions
-    assert not validate_json.check_schema(broken, schema)
+    broken = {"default_distro": "trixie"}  # missing stellar_cli_versions
+    assert not validate_json.check_schema(broken, _schema(fixtures_dir))
+
+
+def test_check_schema_rejects_bare_label_entry(minimal_builds: dict, fixtures_dir: Path) -> None:
+    # rust_versions entries must be fully-qualified label@sha256:<digest>.
+    minimal_builds["stellar_cli_versions"][0]["rust_versions"] = ["1.94.0-slim-trixie"]
+    assert not validate_json.check_schema(minimal_builds, _schema(fixtures_dir))
+
+
+def test_check_schema_rejects_duplicate_entry(minimal_builds: dict, fixtures_dir: Path) -> None:
+    digest = "sha256:" + "f" * 64
+    minimal_builds["stellar_cli_versions"][0]["rust_versions"] = [
+        f"1.94.0-slim-trixie@{digest}",
+        f"1.94.0-slim-trixie@{digest}",
+    ]
+    assert not validate_json.check_schema(minimal_builds, _schema(fixtures_dir))
+
+
+def test_check_schema_allows_two_digests(minimal_builds: dict, fixtures_dir: Path) -> None:
+    # The whole point of inlining: one label may carry two distinct digests.
+    minimal_builds["stellar_cli_versions"][0]["rust_versions"] = [
+        "1.94.0-slim-trixie@sha256:" + "a" * 64,
+        "1.94.0-slim-trixie@sha256:" + "b" * 64,
+    ]
+    assert validate_json.check_schema(minimal_builds, _schema(fixtures_dir))
 
 
 def test_iter_json_files_excludes_well_known_dirs(tmp_path: Path) -> None:
@@ -64,11 +81,11 @@ def test_main_passes_on_real_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     assert validate_json.main([]) == 0
 
 
-def test_main_fails_when_cross_field_violated(
+def test_main_fails_on_invalid_entry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixtures_dir: Path
 ) -> None:
-    # Stage a fake repo root with an orphan rust_versions entry.
-    (tmp_path / "builds.json").write_text((fixtures_dir / "builds_orphan_rust.json").read_text())
+    # Stage a fake repo root whose builds.json has a bare (un-pinned) entry.
+    (tmp_path / "builds.json").write_text((fixtures_dir / "builds_invalid_entry.json").read_text())
     (tmp_path / "builds.schema.json").write_text(
         (fixtures_dir.parent.parent / "builds.schema.json").read_text()
     )
