@@ -42,7 +42,7 @@ def list_tag(row: dict) -> str:
 
 def pins_newest_first(rows: list[dict]) -> list[str]:
     """Unique multi-arch list tags (one per base pin), ordered by version descending."""
-    seen: dict[str, tuple] = {}
+    seen: dict[str, semver.Version] = {}
     for row in rows:
         tag = list_tag(row)
         if tag not in seen:

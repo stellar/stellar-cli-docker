@@ -1,5 +1,5 @@
 {
-  "$comment": "JSON Schema for builds.json. Each rust_versions[] entry is a fully-qualified rust base pin, '<rust_base_key>@<image_digest>', so a release records the exact base it was built against. The same label may appear with two different digests across (or within) releases; the published tag carries a short digest fragment to keep each immutable.",
+  "$comment": "JSON Schema for builds.json. Each rust_versions[] entry is a fully-qualified rust base pin, '<rust_base_key>@<image_digest>', so a release records the exact base it was built against. The same label may appear with two different digests across (or within) releases; builds.json keeps the full history, but only the newest pin per label is published, under a label-only tag.",
   "$id": "https://github.com/stellar/stellar-cli-docker/builds.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
