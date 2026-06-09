@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         builds_data = json.loads(builds_path.read_text())
         schema = json.loads(schema_path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         common.err(f"could not load builds.json/builds.schema.json: {exc}")
         return 1
 
