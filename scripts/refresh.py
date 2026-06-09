@@ -116,10 +116,10 @@ def main(argv: list[str] | None = None) -> int:
     common.preflight_checks(["git", "buildx"])
 
     cli = args.stellar_cli_version
-    data = builds.load()
-    entry = builds.find_cli(data, cli)
 
     try:
+        data = builds.load()
+        entry = builds.find_cli(data, cli)
         if args.rust_versions:
             labels = [k.strip() for k in args.rust_versions.split(",") if k.strip()]
             common.log(f"rust base labels (from --rust-versions): {' '.join(labels)}")

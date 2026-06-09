@@ -90,8 +90,12 @@ def main(argv: list[str] | None = None) -> int:
 
     builds_path = root / "builds.json"
     schema_path = root / "builds.schema.json"
-    builds_data = json.loads(builds_path.read_text())
-    schema = json.loads(schema_path.read_text())
+    try:
+        builds_data = json.loads(builds_path.read_text())
+        schema = json.loads(schema_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        common.err(f"could not load builds.json/builds.schema.json: {exc}")
+        return 1
 
     ok &= check_schema(builds_data, schema)
 
