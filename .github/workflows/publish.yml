@@ -223,6 +223,39 @@ jobs:
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --registry "$REGISTRY"
 
+  description:
+    name: update Docker Hub description
+    needs: [manifest]
+    # Skip for forks publishing to a non-Docker-Hub registry; the Docker Hub
+    # API only makes sense for docker.io repositories.
+    if: startsWith(vars.REGISTRY || 'docker.io/stellar/stellar-cli', 'docker.io/')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: update full description from docker/README.md
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          # Derive the Docker Hub "namespace/repo" path from REGISTRY by
+          # dropping the docker.io/ host prefix.
+          repo="${REGISTRY#docker.io/}"
+
+          token=$(jq -n --arg u "$DOCKERHUB_USERNAME" --arg p "$DOCKERHUB_TOKEN" \
+            '{username: $u, password: $p}' | \
+            curl -sSf -X POST "https://hub.docker.com/v2/users/login/" \
+              -H "Content-Type: application/json" \
+              -d @- \
+            | jq -er .token)
+
+          jq -n --arg desc "$(cat ./docker/README.md)" '{"full_description": $desc}' | \
+            curl -sSf -X PATCH "https://hub.docker.com/v2/repositories/${repo}/" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${token}" \
+              -d @- \
+            > /dev/null
+
   release:
     name: enrich github release with sbom and provenance
     needs: [matrix, aliases]
@@ -267,6 +300,7 @@ jobs:
       - build
       - manifest
       - aliases
+      - description
       - release
     runs-on: ubuntu-24.04
     steps:
