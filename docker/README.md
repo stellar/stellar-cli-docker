@@ -19,7 +19,7 @@ Each image:
 
 ## Quick start
 
-Pull a published image (per-host arch):
+Pull a published image:
 
 ```sh
 docker run --rm docker.io/stellar/stellar-cli:latest --version
@@ -70,15 +70,24 @@ For verifiable references, **always pin to a per-arch single-architecture digest
 multi-arch manifest list digest in `bldimg`:
 
 ```sh
-# Find the per-arch digest for the architecture you used to build.
-# Pick any of the manifest-list tags from the release notes,
-# e.g. :26.0.0-rust1.94.0-slim-trixie, or the :26.0.0 alias:
-docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0
+# List the per-arch digest for each platform behind a tag. Pick any of the
+# manifest-list tags from the release notes, e.g. :26.0.0-rust1.94.0-slim-trixie,
+# or the :26.0.0 alias:
+docker buildx imagetools inspect docker.io/stellar/stellar-cli:26.0.0 \
+  --format '{{range .Manifest.Manifests}}{{if and .Platform (ne .Platform.OS "unknown")}}{{.Platform.OS}}/{{.Platform.Architecture}} {{.Digest}}{{println}}{{end}}{{end}}'
 ```
 
-Record the per-arch digest in your contract's `bldimg` metadata. A verifier will
-pull the same per-arch image, run the same `docker run` invocation, and compare
-the resulting WASM sha256.
+This prints one line per architecture, e.g.:
+
+```
+linux/amd64 sha256:…
+linux/arm64 sha256:…
+```
+
+Record the `sha256:…` digest for the architecture you built on in your
+contract's `bldimg` metadata — not the tag and not the manifest-list digest. A
+verifier will pull that same per-arch image, run the same `docker run`
+invocation, and compare the resulting WASM sha256.
 
 ## Image Tags
 
