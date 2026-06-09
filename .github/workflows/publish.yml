@@ -80,8 +80,7 @@ jobs:
           tag="$(./scripts/tag_names.py \
             --stellar-cli-version ${{ matrix.stellar_cli_version }} \
             --rust-version ${{ matrix.rust_base_key }} \
-            --platform ${{ matrix.platform }} \
-            --stellar-cli-ref ${{ matrix.stellar_cli_ref }})"
+            --platform ${{ matrix.platform }})"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "image=$REGISTRY:$tag" >> "$GITHUB_OUTPUT"
 
@@ -91,32 +90,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: check whether already published
-        id: skip
-        run: |
-          if docker buildx imagetools inspect "${{ steps.tag.outputs.image }}" >/dev/null 2>&1; then
-            echo "::warning::${{ steps.tag.outputs.image }} already exists in the registry; skipping build (per-arch tags are immutable)"
-            {
-              echo "## ⚠️ Skipped — already published"
-              echo ""
-              echo "\`${{ steps.tag.outputs.image }}\` was already in the registry."
-              echo ""
-              echo "Per-arch tags are immutable, so no build or push happened for this row. If this is a corrupt-push recovery, delete the tag in Docker Hub by hand and re-run the workflow."
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skipped=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: build metadata
         id: meta
-        if: steps.skip.outputs.skipped != 'true'
         run: |
           echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: build and push
         id: build
-        if: steps.skip.outputs.skipped != 'true'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -135,18 +115,16 @@ jobs:
             SOURCE_REPO=${{ github.repository }}
 
       - name: generate SBOM file
-        if: steps.skip.outputs.skipped != 'true'
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ steps.tag.outputs.image }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.spdx.json
+          output-file: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.spdx.json
           upload-release-assets: false
           upload-artifact: false
 
       - name: attest build provenance
         id: attest-prov
-        if: steps.skip.outputs.skipped != 'true'
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}
@@ -158,19 +136,17 @@ jobs:
 
       - name: attest SBOM
         id: attest-sbom
-        if: steps.skip.outputs.skipped != 'true'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.spdx.json
+          sbom-path: sbom-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.spdx.json
           push-to-registry: true
 
       - name: write per-arch metadata
-        if: steps.skip.outputs.skipped != 'true'
         run: |
           ./scripts/write_metadata.py \
-            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json" \
+            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.json" \
             --arch "${{ matrix.arch }}" \
             --stellar-cli-version "${{ matrix.stellar_cli_version }}" \
             --digest "${{ steps.build.outputs.digest }}" \
@@ -180,41 +156,20 @@ jobs:
             --tag "${{ steps.tag.outputs.tag }}"
 
       - name: rename provenance bundle
-        if: steps.skip.outputs.skipped != 'true'
         run: |
           cp "${{ steps.attest-prov.outputs.bundle-path }}" \
-            "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.intoto.jsonl"
-
-      # Skipped pairs still need metadata so the release-body composer can
-      # show the full state of every declared pair, not just the freshly
-      # built ones. Omitting --digest tells write_metadata to resolve it
-      # from the existing tag in the registry; the SBOM/provenance files
-      # are not regenerated (they stay attached to the previously-
-      # published image's attestation store).
-      - name: write per-arch metadata (skipped pair)
-        if: steps.skip.outputs.skipped == 'true'
-        run: |
-          ./scripts/write_metadata.py \
-            --output "meta-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}.json" \
-            --arch "${{ matrix.arch }}" \
-            --stellar-cli-version "${{ matrix.stellar_cli_version }}" \
-            --image "${{ steps.tag.outputs.image }}" \
-            --rust-base-key "${{ matrix.rust_base_key }}" \
-            --rust-version "${{ matrix.rust_version }}" \
-            --tag "${{ steps.tag.outputs.tag }}"
+            "prov-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}.intoto.jsonl"
 
       - name: upload release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_key }}-${{ matrix.arch }}
+          name: release-artifacts-${{ matrix.stellar_cli_version }}-rust${{ matrix.rust_base_id }}-${{ matrix.arch }}
           path: |
             sbom-*.spdx.json
             prov-*.intoto.jsonl
             meta-*.json
           retention-days: 7
-          # warn (not error) because the skipped path only produces meta-*.json;
-          # the sbom-*/prov-* globs find nothing in that case.
-          if-no-files-found: warn
+          if-no-files-found: error
 
   manifest:
     name: assemble manifest lists
@@ -268,6 +223,39 @@ jobs:
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
             --registry "$REGISTRY"
 
+  description:
+    name: update Docker Hub description
+    needs: [manifest]
+    # Skip for forks publishing to a non-Docker-Hub registry; the Docker Hub
+    # API only makes sense for docker.io repositories.
+    if: startsWith(vars.REGISTRY || 'docker.io/stellar/stellar-cli', 'docker.io/')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: update full description from docker/README.md
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          # Derive the Docker Hub "namespace/repo" path from REGISTRY by
+          # dropping the docker.io/ host prefix.
+          repo="${REGISTRY#docker.io/}"
+
+          token=$(jq -n --arg u "$DOCKERHUB_USERNAME" --arg p "$DOCKERHUB_TOKEN" \
+            '{username: $u, password: $p}' | \
+            curl -sSf -X POST "https://hub.docker.com/v2/users/login/" \
+              -H "Content-Type: application/json" \
+              -d @- \
+            | jq -er .token)
+
+          jq -n --arg desc "$(cat ./docker/README.md)" '{"full_description": $desc}' | \
+            curl -sSf -X PATCH "https://hub.docker.com/v2/repositories/${repo}/" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${token}" \
+              -d @- \
+            > /dev/null
+
   release:
     name: enrich github release with sbom and provenance
     needs: [matrix, aliases]
@@ -312,6 +300,7 @@ jobs:
       - build
       - manifest
       - aliases
+      - description
       - release
     runs-on: ubuntu-24.04
     steps:

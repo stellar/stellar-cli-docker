@@ -8,7 +8,7 @@ and confirms that `stellar contract build --locked` produces byte-identical
 
 import argparse
 import atexit
-import contextlib
+import os
 import re
 import shutil
 import sys
@@ -46,6 +46,10 @@ def build_and_hash(image: str, contract_dir: Path) -> str:
             "docker",
             "run",
             "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "-e",
+            "CARGO_HOME=/tmp/cargo",
             "--entrypoint",
             "bash",
             "-v",
@@ -103,35 +107,14 @@ def clone(repo: str, rev: str, workdir: Path) -> None:
     runner.run(["git", "-C", str(workdir), "checkout", "-q", "FETCH_HEAD"])
 
 
-def make_cleanup(image: str, workdir: Path, keep: bool):
+def make_cleanup(workdir: Path, keep: bool):
     def cleanup() -> None:
         if keep:
             common.log(f"keeping workdir on exit: {workdir}")
             return
         if not workdir.exists():
             return
-        # Files inside may be root-owned by the container builds. Wipe via
-        # docker so this works on Linux CI; fall back to host rm.
-        wipe = runner.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "--entrypoint",
-                "sh",
-                "-v",
-                f"{workdir}:/work",
-                image,
-                "-c",
-                "find /work -mindepth 1 -delete",
-            ],
-            check=False,
-            capture_output=True,
-        )
-        if wipe.returncode != 0:
-            shutil.rmtree(workdir, ignore_errors=True)
-        with contextlib.suppress(OSError):
-            workdir.rmdir()
+        shutil.rmtree(workdir, ignore_errors=True)
 
     return cleanup
 
@@ -142,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
 
     contracts = args.contracts or list(DEFAULT_CONTRACTS)
     workdir = Path(tempfile.mkdtemp(prefix="repro-test."))
-    atexit.register(make_cleanup(args.image, workdir, args.keep_workdir))
+    atexit.register(make_cleanup(workdir, args.keep_workdir))
 
     clone(args.repo, args.rev, workdir)
 

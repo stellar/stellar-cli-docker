@@ -41,15 +41,14 @@ def main(argv: list[str] | None = None) -> int:
 
     data = builds.load()
     try:
-        default_rust = builds.derive_default_rust(data, args.stellar_cli_version)
-        stellar_ref = builds.stellar_cli_ref(data, args.stellar_cli_version)
+        default_pin = builds.derive_default_rust(data, args.stellar_cli_version)
+        default_rust = builds.label_of(default_pin)
     except ValueError as exc:
         common.die(str(exc))
 
     target_tag = tag_names.compose_tag(
         stellar_cli_version=args.stellar_cli_version,
         rust_version=default_rust,
-        stellar_cli_ref=stellar_ref,
     )
     target = f"{args.registry}:{target_tag}"
 

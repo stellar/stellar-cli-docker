@@ -78,6 +78,36 @@ def test_check_labels_detects_missing(
     assert "revision" in capsys.readouterr().err
 
 
+def test_main_threads_pinned_digest(monkeypatch: pytest.MonkeyPatch, minimal_builds: dict) -> None:
+    monkeypatch.setattr(smoke_test_image.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(smoke_test_image.builds, "load", lambda: minimal_builds)
+    monkeypatch.setattr(smoke_test_image, "check_version_output", lambda *a, **k: True)
+    monkeypatch.setattr(smoke_test_image, "check_contract_build_help", lambda *a, **k: True)
+    seen = {}
+    monkeypatch.setattr(
+        smoke_test_image,
+        "check_labels",
+        lambda image, **kwargs: seen.update(kwargs) or True,
+    )
+
+    rc = smoke_test_image.main(
+        [
+            "--image",
+            "img",
+            "--stellar-cli-version",
+            "26.0.0",
+            "--rust-version",
+            "1.94.0-slim-trixie",
+            "--rust-image-digest",
+            "sha256:" + "a" * 64,
+        ]
+    )
+    assert rc == 0
+    assert seen["rust_image_digest"] == "sha256:" + "a" * 64
+    assert seen["rust_version"] == "1.94.0"
+    assert seen["rust_base_suffix"] == "slim-trixie"
+
+
 def test_check_labels_detects_drifted_digest(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

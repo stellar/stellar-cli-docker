@@ -1,5 +1,5 @@
 #!/usr/bin/env -S uv run python
-"""Validate every *.json in the repo: sorted keys, schema, cross-field constraints.
+"""Validate every *.json in the repo: sorted keys and schema.
 
 Exits 0 if every check passes, 1 otherwise. Logs go to stderr so callers
 (release_prepare.py et al.) can chain us without polluting stdout.
@@ -78,24 +78,6 @@ def check_schema(builds_data: dict, schema: dict) -> bool:
     return True
 
 
-def check_cross_field_constraints(builds_data: dict) -> bool:
-    digests = set(builds_data.get("rust_image_digests", {}).keys())
-    referenced = {
-        key
-        for entry in builds_data.get("stellar_cli_versions", [])
-        for key in entry.get("rust_versions", [])
-    }
-    missing = referenced - digests
-    if missing:
-        for r in sorted(missing):
-            common.err(
-                f"rust version '{r}' is referenced by a cli entry but "
-                f"missing from rust_image_digests"
-            )
-        return False
-    return True
-
-
 def build_parser() -> argparse.ArgumentParser:
     return argparse.ArgumentParser(description=__doc__.splitlines()[0])
 
@@ -112,7 +94,6 @@ def main(argv: list[str] | None = None) -> int:
     schema = json.loads(schema_path.read_text())
 
     ok &= check_schema(builds_data, schema)
-    ok &= check_cross_field_constraints(builds_data)
 
     if ok:
         common.log("validate-json: all checks passed")

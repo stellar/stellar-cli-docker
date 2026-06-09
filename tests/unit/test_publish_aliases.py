@@ -24,14 +24,12 @@ def test_main_publishes_cli_alias_and_latest_for_newest(
 
 def test_main_skips_latest_for_non_newest(monkeypatch: pytest.MonkeyPatch) -> None:
     # Both clis carry a trixie key so derive_default_rust succeeds; 26.0.0 is newest.
+    pin = "1.94.0-slim-trixie@sha256:" + "a" * 64
     data = {
         "default_distro": "trixie",
-        "rust_image_digests": {
-            "1.94.0-slim-trixie": "sha256:" + "a" * 64,
-        },
         "stellar_cli_versions": [
-            {"ref": "a" * 40, "rust_versions": ["1.94.0-slim-trixie"], "version": "26.0.0"},
-            {"ref": "b" * 40, "rust_versions": ["1.94.0-slim-trixie"], "version": "26.1.0"},
+            {"ref": "a" * 40, "rust_versions": [pin], "version": "26.0.0"},
+            {"ref": "b" * 40, "rust_versions": [pin], "version": "26.1.0"},
         ],
     }
     monkeypatch.setattr(publish_aliases.common, "preflight_checks", lambda _: None)

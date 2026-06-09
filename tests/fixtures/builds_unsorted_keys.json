@@ -1,6 +1,5 @@
 {
   "stellar_cli_versions": [],
   "$schema": "../../builds.schema.json",
-  "default_distro": "trixie",
-  "rust_image_digests": {}
+  "default_distro": "trixie"
 }
