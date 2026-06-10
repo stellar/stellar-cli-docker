@@ -42,12 +42,12 @@ These are set in the workflow YAML, not in repo settings — but worth knowing w
 
 ### Branch protection
 
-The `complete` job in each workflow (`lint.yml`, `build.yml`, `publish.yml`, `release.yml`) is a single aggregator status check. Configure branch protection on `main` to require these checks before merging:
+Each workflow has a single aggregator status check, named uniquely per workflow so they can be required independently: `lint-complete` (`lint.yml`), `build-complete` (`build.yml`), `publish-complete` (`publish.yml`), and `release-complete` (`release.yml`). Configure branch protection on `main` to require both PR checks before merging:
 
-- `lint / complete`
-- `build / complete`
+- `lint-complete`
+- `build-complete`
 
-The `publish` and `release` workflows fire on release events / dispatch and don't gate merges to `main`.
+Require both, not just one — a single required check that happens to finish last (e.g. the slower build) won't catch a failure in the other workflow, and auto-merge can fire before that workflow reports. The `publish` and `release` workflows fire on release events / dispatch and don't gate merges to `main`.
 
 ## Release tag scheme
 
@@ -127,7 +127,7 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 | `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<key>` per rust base. Lists are (re)created via `docker buildx imagetools create`, overwriting any existing list.                                                                                                                                                                                                                                   |
 | `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default rust pin)` — the highest `rust_versions[]` pin whose label matches `default_distro`, newest digest winning a tie. If this cli is the newest declared, also re-points `:latest`. Both tags are intentionally moving; the job fails loudly if no `rust_versions[]` pin matches `default_distro`.                                               |
 | `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release_body.py` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                               |
-| `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
+| `publish-complete` | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                     |
 
 ## Mutable tags and restarts
 
