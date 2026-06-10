@@ -56,6 +56,10 @@
           "version": {
             "$ref": "#/definitions/semver",
             "description": "stellar-cli release version label, e.g. 26.0.0."
+          },
+          "cli_rust_version": {
+            "$ref": "#/definitions/rust_pin",
+            "description": "Fully-qualified rust base pin (<rust_base_key>@<image_digest>) to build this stellar-cli release - not the same as the rustc used to compile contracts"
           }
         },
         "required": [
