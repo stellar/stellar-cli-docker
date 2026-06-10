@@ -4,11 +4,14 @@ Wraps the one git invocation the refresh scripts depend on so tests
 can patch one symbol per script.
 """
 
-from lib import runner
+from lib import common, runner
 
 
 def ls_remote(repo_url: str, *refspecs: str) -> str:
-    return runner.capture(["git", "ls-remote", repo_url, *refspecs])
+    common.reject_option_like(repo_url, "git remote URL")
+    for refspec in refspecs:
+        common.reject_option_like(refspec, "git refspec")
+    return runner.capture(["git", "ls-remote", "--end-of-options", repo_url, *refspecs])
 
 
 def resolve_tag_commit(repo_url: str, tag: str) -> str | None:

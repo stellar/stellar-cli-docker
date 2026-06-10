@@ -11,6 +11,19 @@ def test_load_default_path() -> None:
     assert "stellar_cli_versions" in data
 
 
+def test_load_rejects_non_dict_json(tmp_path: Path) -> None:
+    bad = tmp_path / "list.json"
+    bad.write_text("[1, 2, 3]")
+    with pytest.raises(ValueError, match="must contain a JSON object"):
+        builds.load(bad)
+
+
+@pytest.mark.parametrize("pin", [None, 42, ["a"], {"x": 1}])
+def test_split_entry_rejects_non_string(pin: object) -> None:
+    with pytest.raises(ValueError, match="must be a string"):
+        builds.split_entry(pin)  # type: ignore[arg-type]
+
+
 def test_load_explicit_path(fixtures_dir: Path) -> None:
     data = builds.load(fixtures_dir / "builds_minimal.json")
     assert data["default_distro"] == "trixie"

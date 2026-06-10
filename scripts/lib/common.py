@@ -32,6 +32,28 @@ def repo_root() -> Path:
     return REPO_ROOT
 
 
+def reject_option_like(value: str, name: str) -> str:
+    """Refuse a value that a child process would parse as a command-line option.
+
+    Values that reach a subprocess argv as positionals — image references, git
+    refs, git remote URLs, tags — must not begin with ``-``. Both ``git`` and
+    ``docker`` permute their argv and treat any ``-``-prefixed token as a flag
+    wherever it appears, so an attacker-influenced value like
+    ``--upload-pack=<cmd>`` or ``--privileged`` is interpreted as an injected
+    option rather than data (argument injection, up to arbitrary command
+    execution). A valid image reference, git refname, or tag never starts with
+    ``-``, so rejecting that prefix loses no legitimate input.
+
+    Returns the value unchanged when it is safe, so callers can guard inline.
+    """
+    if value.startswith("-"):
+        raise ValueError(
+            f"{name} must not begin with '-' (got {value!r}): "
+            "a leading dash would be parsed as a command-line option"
+        )
+    return value
+
+
 def step_summary(message: str) -> None:
     """Append a markdown block to the GitHub Actions step summary.
 

@@ -69,3 +69,30 @@ def test_create_manifest_invokes_docker(monkeypatch: pytest.MonkeyPatch) -> None
 def test_create_manifest_requires_sources() -> None:
     with pytest.raises(ValueError, match="at least one"):
         docker_inspect.create_manifest("tag")
+
+
+def test_index_digest_rejects_option_like_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Guard runs before any subprocess; capture must never be reached.
+    monkeypatch.setattr(
+        docker_inspect.runner, "capture", lambda *_, **__: pytest.fail("ran docker")
+    )
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        docker_inspect.index_digest("--config=/tmp/evil")
+
+
+def test_exists_rejects_option_like_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(docker_inspect.runner, "run", lambda *_, **__: pytest.fail("ran docker"))
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        docker_inspect.exists("--privileged")
+
+
+def test_create_manifest_rejects_option_like_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(docker_inspect.runner, "run", lambda *_, **__: pytest.fail("ran docker"))
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        docker_inspect.create_manifest("--output=/tmp/x", "src1")
+
+
+def test_create_manifest_rejects_option_like_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(docker_inspect.runner, "run", lambda *_, **__: pytest.fail("ran docker"))
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        docker_inspect.create_manifest("tag", "good-src", "--privileged")

@@ -84,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
 
     data = builds.load()
     try:
+        # args.image is fed to `docker run`/`docker inspect` as a positional; a
+        # value like '--privileged' would otherwise be parsed as a docker flag.
+        common.reject_option_like(args.image, "--image")
         parsed = rust_keys.parse(args.rust_version)
         stellar_ref = builds.stellar_cli_ref(data, args.stellar_cli_version)
     except ValueError as exc:

@@ -26,6 +26,29 @@ def _common_args(out: Path) -> list[str]:
     ]
 
 
+def test_main_rejects_option_like_image(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    out = tmp_path / "meta.json"
+    args = [
+        "--output",
+        str(out),
+        "--arch",
+        "amd64",
+        "--stellar-cli-version",
+        "26.0.0",
+        "--image=--privileged",  # would reach `docker buildx imagetools inspect` as a flag
+        "--rust-base-key",
+        "1.94.0-slim-trixie",
+        "--rust-version",
+        "1.94.0",
+        "--tag",
+        "26.0.0-rust1.94.0-slim-trixie-amd64",
+    ]
+    with pytest.raises(SystemExit):
+        write_metadata.main(args)
+    assert "must not begin with '-'" in capsys.readouterr().err
+    assert not out.exists()
+
+
 def test_main_writes_metadata_with_explicit_digest(tmp_path: Path) -> None:
     out = tmp_path / "meta.json"
     args = [*_common_args(out), "--digest", "sha256:" + "a" * 64]

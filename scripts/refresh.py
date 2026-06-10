@@ -20,6 +20,7 @@ stderr.
 
 import argparse
 import re
+import subprocess
 import sys
 from collections.abc import Iterable
 
@@ -91,9 +92,14 @@ def append_pins(entry: dict, labels: Iterable[str]) -> bool:
         common.log(f"  -> appending {pin}")
         entry["rust_versions"].append(pin)
         changed = True
-    entry["rust_versions"].sort(
-        key=lambda p: semver.parse(rust_keys.version_of(builds.label_of(p)))
-    )
+    # Only re-sort when we actually appended. Sorting unconditionally would
+    # rewrite (and, via the caller's os.replace(), commit) a reordering of
+    # already-published pins even on a no-op refresh, making release-prepare
+    # see a spurious change.
+    if changed:
+        entry["rust_versions"].sort(
+            key=lambda p: semver.parse(rust_keys.version_of(builds.label_of(p)))
+        )
     return changed
 
 
@@ -143,6 +149,11 @@ def main(argv: list[str] | None = None) -> int:
         data["stellar_cli_versions"].sort(key=lambda e: semver.parse(e["version"]))
     except ValueError as exc:
         common.die(str(exc))
+    except subprocess.CalledProcessError as exc:
+        # `docker buildx imagetools inspect rust:<label>` exits non-zero for an
+        # unknown/typo'd label (e.g. from --rust-versions). Report it cleanly
+        # instead of letting the CalledProcessError escape as a traceback.
+        common.die(f"failed to resolve a rust base digest via docker: {exc}")
     except OSError as exc:
         # Network failure from the Docker Hub tag lookup (urllib raises
         # URLError, an OSError) or a filesystem error.

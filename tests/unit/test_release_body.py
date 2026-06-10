@@ -19,6 +19,63 @@ def test_load_metadata_empty_dir_raises(tmp_path: Path) -> None:
         release_body.load_metadata(tmp_path, "26.0.0")
 
 
+def test_load_metadata_rejects_shell_metachars_in_digest(
+    tmp_path: Path, fixtures_dir: Path
+) -> None:
+    import json
+
+    row = json.loads((fixtures_dir / "meta_amd64.json").read_text())
+    # A digest carrying a command substitution would otherwise be interpolated
+    # verbatim into the copy-paste verification shell block.
+    row["digest"] = "sha256:$(touch /tmp/pwned)"
+    (tmp_path / "meta-evil.json").write_text(json.dumps(row))
+    with pytest.raises(ValueError, match="invalid digest"):
+        release_body.load_metadata(tmp_path, "26.0.0")
+
+
+def test_load_metadata_rejects_empty_arch(tmp_path: Path, fixtures_dir: Path) -> None:
+    import json
+
+    row = json.loads((fixtures_dir / "meta_amd64.json").read_text())
+    row["arch"] = ""  # empty arch made list_tag a no-op -> duplicate sections
+    (tmp_path / "meta-x.json").write_text(json.dumps(row))
+    with pytest.raises(ValueError, match="invalid arch"):
+        release_body.load_metadata(tmp_path, "26.0.0")
+
+
+def test_load_metadata_rejects_symlinked_file(tmp_path: Path, fixtures_dir: Path) -> None:
+    outside = tmp_path / "outside.json"
+    outside.write_text((fixtures_dir / "meta_amd64.json").read_text())
+    metadir = tmp_path / "meta"
+    metadir.mkdir()
+    (metadir / "meta-link.json").symlink_to(outside)
+    with pytest.raises(ValueError, match="symlink"):
+        release_body.load_metadata(metadir, "26.0.0")
+
+
+@pytest.mark.parametrize("flag", ["--registry", "--repo"])
+def test_main_rejects_unsafe_ref_args(
+    flag: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fixtures_dir: Path,
+    minimal_builds: dict,
+) -> None:
+    shutil.copy(fixtures_dir / "meta_amd64.json", tmp_path / "meta-amd64.json")
+    monkeypatch.setattr(release_body.builds, "load", lambda: minimal_builds)
+    with pytest.raises(SystemExit):
+        release_body.main(
+            [
+                "--stellar-cli-version",
+                "26.0.0",
+                "--metadata-dir",
+                str(tmp_path),
+                flag,
+                "evil;$(id)",
+            ]
+        )
+
+
 def test_load_metadata_rejects_mismatched_cli(tmp_path: Path, fixtures_dir: Path) -> None:
     shutil.copy(fixtures_dir / "meta_amd64.json", tmp_path / "meta-x.json")
     with pytest.raises(ValueError, match=r"expected '99\.0\.0'"):

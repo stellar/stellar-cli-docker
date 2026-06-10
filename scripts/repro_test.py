@@ -100,10 +100,19 @@ def test_one_contract(image: str, workdir: Path, name: str) -> bool:
 
 
 def clone(repo: str, rev: str, workdir: Path) -> None:
+    # Both values are untrusted CLI input. git permutes its argv and treats any
+    # '-'-prefixed token as an option wherever it sits, so a rev like
+    # '--upload-pack=<cmd>' (with a file:// repo) would run an arbitrary binary.
+    # Reject the dash prefix and pin '--end-of-options' before the positionals
+    # so git can never reinterpret them as flags.
+    common.reject_option_like(repo, "repo URL")
+    common.reject_option_like(rev, "rev")
     common.log(f"cloning {repo} @ {rev} into {workdir} ...")
     runner.run(["git", "-C", str(workdir), "init", "-q"])
-    runner.run(["git", "-C", str(workdir), "remote", "add", "origin", repo])
-    runner.run(["git", "-C", str(workdir), "fetch", "--depth=1", "origin", rev, "-q"])
+    runner.run(["git", "-C", str(workdir), "remote", "add", "--", "origin", repo])
+    runner.run(
+        ["git", "-C", str(workdir), "fetch", "--depth=1", "-q", "--end-of-options", "origin", rev]
+    )
     runner.run(["git", "-C", str(workdir), "checkout", "-q", "FETCH_HEAD"])
 
 
@@ -122,6 +131,13 @@ def make_cleanup(workdir: Path, keep: bool):
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     common.preflight_checks(["git", "buildx"])
+
+    try:
+        common.reject_option_like(args.image, "--image")
+        common.reject_option_like(args.repo, "--repo")
+        common.reject_option_like(args.rev, "--rev")
+    except ValueError as exc:
+        common.die(str(exc))
 
     contracts = args.contracts or list(DEFAULT_CONTRACTS)
     workdir = Path(tempfile.mkdtemp(prefix="repro-test."))

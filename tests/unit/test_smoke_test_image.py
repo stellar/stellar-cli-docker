@@ -108,6 +108,32 @@ def test_main_threads_pinned_digest(monkeypatch: pytest.MonkeyPatch, minimal_bui
     assert seen["rust_base_suffix"] == "slim-trixie"
 
 
+def test_main_rejects_option_like_image(
+    monkeypatch: pytest.MonkeyPatch, minimal_builds: dict, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(smoke_test_image.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(smoke_test_image.builds, "load", lambda: minimal_builds)
+    # No docker check should run; an image of '--privileged' would be parsed as
+    # a docker flag, so main() must die before reaching any runner call.
+    monkeypatch.setattr(
+        smoke_test_image.runner, "capture", lambda *_, **__: pytest.fail("ran docker")
+    )
+    monkeypatch.setattr(smoke_test_image.runner, "run", lambda *_, **__: pytest.fail("ran docker"))
+    with pytest.raises(SystemExit):
+        smoke_test_image.main(
+            [
+                "--image=--privileged",  # single token: argparse accepts the '--privileged' value
+                "--stellar-cli-version",
+                "26.0.0",
+                "--rust-version",
+                "1.94.0-slim-trixie",
+                "--rust-image-digest",
+                "sha256:" + "a" * 64,
+            ]
+        )
+    assert "must not begin with '-'" in capsys.readouterr().err
+
+
 def test_check_labels_detects_drifted_digest(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -20,7 +20,15 @@ DEFAULT_PATH = REPO_ROOT / "builds.json"
 
 def load(path: Path | None = None) -> dict[str, Any]:
     target = path or DEFAULT_PATH
-    return json.loads(target.read_text())
+    data = json.loads(target.read_text())
+    if not isinstance(data, dict):
+        # Every caller treats the result as a mapping (data.get(...)); a JSON
+        # scalar/array would otherwise surface as an opaque AttributeError deep
+        # in an unrelated call. Fail here with a message naming the file.
+        raise ValueError(
+            f"{target} must contain a JSON object at the top level, got {type(data).__name__}"
+        )
+    return data
 
 
 def dump(data: dict[str, Any], path: Path | None = None) -> None:
@@ -59,6 +67,10 @@ def split_entry(pin: str) -> tuple[str, str]:
     `rust:<label>` base and the published tag's `rust<label>` segment;
     the digest pins the exact base bytes.
     """
+    if not isinstance(pin, str):
+        raise ValueError(
+            f"rust base pin must be a string (expected <label>@<digest>), got {type(pin).__name__}"
+        )
     label, sep, digest = pin.partition("@")
     if not sep or not digest:
         raise ValueError(f"invalid rust base pin (expected <label>@<digest>): {pin}")

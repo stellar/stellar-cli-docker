@@ -31,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
     data = builds.load()
     rust_digest = args.rust_image_digest
     try:
+        if args.tag:
+            common.reject_option_like(args.tag, "--tag")
         builds.assert_pair_declared(
             data, args.stellar_cli_version, f"{args.rust_version}@{rust_digest}"
         )

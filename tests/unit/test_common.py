@@ -86,3 +86,20 @@ def test_sha256_of_streams_large_files(tmp_path: Path) -> None:
     payload = b"x" * (256 * 1024)
     f.write_bytes(payload)
     assert common.sha256_of(f) == hashlib.sha256(payload).hexdigest()
+
+
+def test_reject_option_like_returns_safe_value() -> None:
+    ref = "rust:1.94.0-slim-trixie"
+    assert common.reject_option_like(ref, "image") == ref
+    assert common.reject_option_like("docker.io/stellar/stellar-cli:26.0.0", "image").startswith(
+        "docker.io"
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["--privileged", "--upload-pack=touch /tmp/x", "-it", "--rm"],
+)
+def test_reject_option_like_rejects_leading_dash(value: str) -> None:
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        common.reject_option_like(value, "image")

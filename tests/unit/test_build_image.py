@@ -43,6 +43,27 @@ def test_main_invokes_docker_with_build_args(
     assert f"RUST_IMAGE_DIGEST={DIGEST}" in args
 
 
+def test_main_rejects_option_like_tag(
+    monkeypatch: pytest.MonkeyPatch, minimal_builds: dict, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(build_image.builds, "load", lambda: minimal_builds)
+    monkeypatch.setattr(build_image.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(build_image.runner, "run", lambda *_, **__: pytest.fail("ran docker"))
+    with pytest.raises(SystemExit):
+        build_image.main(
+            [
+                "--stellar-cli-version",
+                "26.0.0",
+                "--rust-version",
+                "1.94.0-slim-trixie",
+                "--rust-image-digest",
+                DIGEST,
+                "--tag=--push",  # would reach `docker buildx build` as a flag
+            ]
+        )
+    assert "must not begin with '-'" in capsys.readouterr().err
+
+
 def test_main_respects_platform_flag(monkeypatch: pytest.MonkeyPatch, minimal_builds: dict) -> None:
     monkeypatch.setattr(build_image.builds, "load", lambda: minimal_builds)
     monkeypatch.setattr(build_image.common, "preflight_checks", lambda _: None)

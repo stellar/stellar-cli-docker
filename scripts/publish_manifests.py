@@ -44,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     common.preflight_checks(["buildx"])
 
+    try:
+        common.reject_option_like(args.registry, "--registry")
+    except ValueError as exc:
+        common.die(str(exc))
+
     data = builds.load()
     entry = builds.find_cli(data, args.stellar_cli_version)
     if entry is None:

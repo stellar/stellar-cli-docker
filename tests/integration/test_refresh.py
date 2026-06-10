@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -173,6 +174,36 @@ def test_unresolvable_tag_dies(monkeypatch: pytest.MonkeyPatch, staged_minimal: 
     monkeypatch.setattr(refresh.docker_inspect, "index_digest", lambda ref: "sha256:" + "a" * 64)
     with pytest.raises(SystemExit):
         refresh.main(["--stellar-cli-version", "27.0.0", "--rust-versions", "1.95.0-slim-trixie"])
+
+
+def test_docker_failure_dies_cleanly(
+    monkeypatch: pytest.MonkeyPatch, staged_minimal: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # An unknown/typo'd --rust-versions label makes `docker buildx imagetools
+    # inspect` exit non-zero; the CalledProcessError must be reported via die(),
+    # not escape as an unhandled traceback.
+    _no_git(monkeypatch)
+
+    def boom(ref: str) -> str:
+        raise subprocess.CalledProcessError(1, ["docker", "buildx", "imagetools", "inspect", ref])
+
+    monkeypatch.setattr(refresh.docker_inspect, "index_digest", boom)
+    with pytest.raises(SystemExit):
+        refresh.main(["--stellar-cli-version", "26.0.0", "--rust-versions", "nonsuch-label"])
+    assert "docker" in capsys.readouterr().err
+
+
+def test_append_pins_preserves_order_on_noop() -> None:
+    # When no new pin is appended, the existing (possibly published) order must
+    # not be silently re-sorted — that would surface as a spurious change.
+    pin_a = "1.95.0-slim-trixie@sha256:" + "a" * 64
+    pin_b = "1.94.0-slim-trixie@sha256:" + "b" * 64
+    entry = {"rust_versions": [pin_a, pin_b]}  # deliberately not version-sorted
+
+    # All requested labels already present (by exact pin) → no append.
+    changed = refresh.append_pins(entry, [])
+    assert changed is False
+    assert entry["rust_versions"] == [pin_a, pin_b]
 
 
 def test_auto_picks_when_no_rust_versions(

@@ -20,8 +20,15 @@ EXCLUDED_DIRS = {"node_modules", "target", ".git", ".venv", "tests"}
 
 
 def iter_json_files(root: Path):
+    root_resolved = root.resolve()
     for path in sorted(root.rglob("*.json")):
         if any(part in EXCLUDED_DIRS for part in path.relative_to(root).parts):
+            continue
+        # Don't follow symlinks out of the repo: a symlinked *.json (or a file
+        # reached through a symlinked directory) could resolve anywhere on
+        # disk, turning this repo lint into an arbitrary-file read. Skip any
+        # path whose real location escapes the repo tree.
+        if not path.resolve().is_relative_to(root_resolved):
             continue
         yield path
 

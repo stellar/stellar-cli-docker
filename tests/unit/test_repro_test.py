@@ -5,6 +5,29 @@ import pytest
 import repro_test
 
 
+def test_clone_rejects_option_like_rev(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # The classic argument-injection vector: --rev '--upload-pack=<cmd>'.
+    monkeypatch.setattr(repro_test.runner, "run", lambda *_, **__: pytest.fail("ran git"))
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        repro_test.clone("https://example.com/repo.git", "--upload-pack=touch /tmp/x", tmp_path)
+
+
+def test_clone_rejects_option_like_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(repro_test.runner, "run", lambda *_, **__: pytest.fail("ran git"))
+    with pytest.raises(ValueError, match="must not begin with '-'"):
+        repro_test.clone("--config=core.foo=bar", "main", tmp_path)
+
+
+def test_clone_fetch_pins_end_of_options(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cmds: list[list[str]] = []
+    monkeypatch.setattr(repro_test.runner, "run", lambda cmd, **__: cmds.append(cmd))
+    repro_test.clone("https://example.com/repo.git", "main", tmp_path)
+    fetch = next(c for c in cmds if "fetch" in c)
+    assert "--end-of-options" in fetch
+    # rev sits after --end-of-options, so it can never be parsed as a flag.
+    assert fetch.index("--end-of-options") < fetch.index("main")
+
+
 def test_assert_sha256_accepts_valid() -> None:
     assert repro_test.assert_sha256("a" * 64, "build A") is True
 

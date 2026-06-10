@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    try:
+        common.reject_option_like(args.image, "--image")
+    except ValueError as exc:
+        common.die(str(exc))
+
     digest = args.digest
     if not digest:
         try:

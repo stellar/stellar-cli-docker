@@ -9,10 +9,28 @@ body to stdout.
 import argparse
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
 from lib import builds, common, semver
+
+# The release body interpolates these metadata fields verbatim into a
+# copy-paste-runnable ```sh``` verification block. Constrain each to a charset
+# that can't smuggle shell metacharacters (e.g. $(...), backticks, ';'), so a
+# malformed/hostile meta-*.json can't plant a command in the published body.
+_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_ARCH_RE = re.compile(r"^[a-z0-9]+$")
+_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# A registry ref / repo slug as it appears in the verify commands.
+_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:-]*$")
+
+_ROW_FIELD_RE = {
+    "digest": _DIGEST_RE,
+    "arch": _ARCH_RE,
+    "tag": _TAG_RE,
+    "rust_base_key": _TAG_RE,
+}
 
 
 def load_metadata(metadata_dir: Path, expected_cli: str) -> list[dict]:
@@ -21,6 +39,10 @@ def load_metadata(metadata_dir: Path, expected_cli: str) -> list[dict]:
         raise ValueError(f"no meta-*.json files under {metadata_dir}")
     rows: list[dict] = []
     for f in files:
+        # A symlinked meta-*.json could resolve to an arbitrary file outside the
+        # metadata dir; only read regular files we can vouch for.
+        if f.is_symlink():
+            raise ValueError(f"metadata file {f} is a symlink; refusing to follow it")
         row = json.loads(f.read_text())
         entry_cli = row.get("stellar_cli_version") or ""
         if not entry_cli:
@@ -30,6 +52,15 @@ def load_metadata(metadata_dir: Path, expected_cli: str) -> list[dict]:
                 f"metadata file {f} has stellar_cli_version='{entry_cli}', "
                 f"expected '{expected_cli}'"
             )
+        for field, pattern in _ROW_FIELD_RE.items():
+            value = row.get(field)
+            if not isinstance(value, str) or not pattern.match(value):
+                raise ValueError(
+                    f"metadata file {f} has invalid {field}={value!r}; "
+                    f"expected to match {pattern.pattern}"
+                )
+        if "rust_version" not in row:
+            raise ValueError(f"metadata file {f} is missing the rust_version field")
         rows.append(row)
     rows.sort(key=lambda r: (semver.parse(r["rust_version"]), r["rust_base_key"], r["arch"]))
     return rows
@@ -135,6 +166,12 @@ def main(argv: list[str] | None = None) -> int:
     metadata_dir = Path(args.metadata_dir)
     if not metadata_dir.is_dir():
         common.die(f"{metadata_dir} is not a directory")
+
+    # registry and repo are interpolated into the verification shell block too.
+    if not _REF_RE.match(args.registry):
+        common.die(f"--registry {args.registry!r} has unexpected characters")
+    if not _REF_RE.match(args.repo):
+        common.die(f"--repo {args.repo!r} has unexpected characters")
 
     try:
         rows = load_metadata(metadata_dir, args.stellar_cli_version)

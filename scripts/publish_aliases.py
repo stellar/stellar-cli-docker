@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
 
     data = builds.load()
     try:
+        common.reject_option_like(args.registry, "--registry")
         default_pin = builds.derive_default_rust(data, args.stellar_cli_version)
         default_rust = builds.label_of(default_pin)
     except ValueError as exc:

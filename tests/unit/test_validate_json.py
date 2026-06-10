@@ -75,6 +75,23 @@ def test_iter_json_files_excludes_well_known_dirs(tmp_path: Path) -> None:
     assert found == {"a.json"}
 
 
+def test_iter_json_files_skips_symlinks_out_of_tree(tmp_path: Path) -> None:
+    # A *.json symlink that resolves outside the repo must not be read — that
+    # would turn this lint into an arbitrary-file read.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    secret = outside / "secret.json"
+    secret.write_text('{"z": 1, "a": 2}')  # unsorted: would fail the lint if read
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "real.json").write_text("{}")
+    (repo / "evil.json").symlink_to(secret)
+
+    found = {p.name for p in validate_json.iter_json_files(repo)}
+    assert found == {"real.json"}
+
+
 def test_main_passes_on_real_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     # `validate_json.py` reads the actual builds.json. The repo as committed
     # must always be valid.
