@@ -42,12 +42,11 @@ These are set in the workflow YAML, not in repo settings — but worth knowing w
 
 ### Branch protection
 
-The `complete` job in each workflow (`lint.yml`, `build.yml`, `publish.yml`, `release.yml`) is a single aggregator status check. Configure branch protection on `main` to require these checks before merging:
+`ci.yml` is the single PR gate. It runs on `pull_request` (and pushes to `main`), calls `lint.yml` and `build.yml` as reusable workflows, and rolls them up into one `complete` job that `needs` both. Configure branch protection on `main` to require that one check before merging:
 
-- `lint / complete`
-- `build / complete`
+- `complete`
 
-The `publish` and `release` workflows fire on release events / dispatch and don't gate merges to `main`.
+Because `complete` `needs` lint and build, the check can't report success until both finish — so auto-merge waits on all of CI through a single required check. The `publish` and `release` workflows fire on release events / dispatch and don't gate merges to `main`.
 
 ## Release tag scheme
 
@@ -127,7 +126,7 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 | `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<key>` per rust base. Lists are (re)created via `docker buildx imagetools create`, overwriting any existing list.                                                                                                                                                                                                                                   |
 | `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default rust pin)` — the highest `rust_versions[]` pin whose label matches `default_distro`, newest digest winning a tie. If this cli is the newest declared, also re-points `:latest`. Both tags are intentionally moving; the job fails loudly if no `rust_versions[]` pin matches `default_distro`.                                               |
 | `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release_body.py` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                               |
-| `complete`       | Branch-protection aggregator. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                                       |
+| `complete`       | Single aggregator for the publish workflow. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                         |
 
 ## Mutable tags and restarts
 
