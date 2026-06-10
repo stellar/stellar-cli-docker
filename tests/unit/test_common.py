@@ -89,11 +89,9 @@ def test_sha256_of_streams_large_files(tmp_path: Path) -> None:
 
 
 def test_reject_option_like_returns_safe_value() -> None:
-    ref = "rust:1.94.0-slim-trixie"
-    assert common.reject_option_like(ref, "image") == ref
-    assert common.reject_option_like("docker.io/stellar/stellar-cli:26.0.0", "image").startswith(
-        "docker.io"
-    )
+    # The guard returns the value unchanged when it's safe.
+    for ref in ("rust:1.94.0-slim-trixie", "docker.io/stellar/stellar-cli:26.0.0"):
+        assert common.reject_option_like(ref, "image") == ref
 
 
 @pytest.mark.parametrize(
