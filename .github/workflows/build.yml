@@ -59,7 +59,7 @@ jobs:
           ./scripts/repro_test.py \
             --image "${{ steps.pair.outputs.image }}"
 
-  complete:
+  build-complete:
     if: always()
     needs:
       - smoke-build

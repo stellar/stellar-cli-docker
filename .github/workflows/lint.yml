@@ -77,7 +77,7 @@ jobs:
       - name: run pytest
         run: uv run pytest
 
-  complete:
+  lint-complete:
     if: always()
     needs:
       - json
