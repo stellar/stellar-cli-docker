@@ -156,6 +156,17 @@ def test_creates_new_cli_entry(monkeypatch: pytest.MonkeyPatch, staged_minimal: 
     assert [e["version"] for e in data["stellar_cli_versions"]] == ["26.0.0", "27.0.0"]
 
 
+def test_malformed_builds_dies_cleanly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A malformed builds.json must route through common.die() (SystemExit),
+    # not surface a raw JSONDecodeError from builds.load().
+    target = tmp_path / "builds.json"
+    target.write_text("{ this is not valid json")
+    monkeypatch.setattr(builds, "DEFAULT_PATH", target)
+    monkeypatch.setattr(refresh.common, "preflight_checks", lambda _: None)
+    with pytest.raises(SystemExit):
+        refresh.main(["--stellar-cli-version", "26.0.0", "--rust-versions", "1.94.0-slim-trixie"])
+
+
 def test_unresolvable_tag_dies(monkeypatch: pytest.MonkeyPatch, staged_minimal: Path) -> None:
     monkeypatch.setattr(refresh.common, "preflight_checks", lambda _: None)
     monkeypatch.setattr(refresh.git_remote, "resolve_tag_commit", lambda repo, tag: None)
