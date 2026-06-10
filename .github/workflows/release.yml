@@ -83,7 +83,7 @@ jobs:
             --title "$title" \
             --body "$body"
 
-  release-complete:
+  complete:
     if: always()
     needs:
       - prepare

@@ -293,7 +293,7 @@ jobs:
             release-artifacts/sbom-*.spdx.json
             release-artifacts/prov-*.intoto.jsonl
 
-  publish-complete:
+  complete:
     if: always()
     needs:
       - matrix

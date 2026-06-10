@@ -2,10 +2,7 @@
 name: lint
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 permissions:
   contents: read
@@ -76,17 +73,3 @@ jobs:
           enable-cache: true
       - name: run pytest
         run: uv run pytest
-
-  lint-complete:
-    if: always()
-    needs:
-      - json
-      - dockerfile
-      - python
-      - matrix-smoke
-      - tests
-    runs-on: ubuntu-24.04
-    steps:
-      - name: check upstream jobs
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
