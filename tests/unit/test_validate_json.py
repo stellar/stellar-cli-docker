@@ -91,3 +91,26 @@ def test_main_fails_on_invalid_entry(
     )
     monkeypatch.setattr(validate_json.common, "repo_root", lambda: tmp_path)
     assert validate_json.main([]) == 1
+
+
+def test_main_returns_1_on_malformed_builds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixtures_dir: Path
+) -> None:
+    # A malformed builds.json must exit 1 cleanly, not raise JSONDecodeError.
+    (tmp_path / "builds.json").write_text("{ this is not valid json")
+    (tmp_path / "builds.schema.json").write_text(
+        (fixtures_dir.parent.parent / "builds.schema.json").read_text()
+    )
+    monkeypatch.setattr(validate_json.common, "repo_root", lambda: tmp_path)
+    assert validate_json.main([]) == 1
+
+
+def test_main_returns_1_on_missing_builds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixtures_dir: Path
+) -> None:
+    # A missing builds.json must exit 1 cleanly, not raise FileNotFoundError.
+    (tmp_path / "builds.schema.json").write_text(
+        (fixtures_dir.parent.parent / "builds.schema.json").read_text()
+    )
+    monkeypatch.setattr(validate_json.common, "repo_root", lambda: tmp_path)
+    assert validate_json.main([]) == 1
