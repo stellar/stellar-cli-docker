@@ -40,12 +40,16 @@
       "items": {
         "additionalProperties": false,
         "properties": {
+          "cli_rust_version": {
+            "$ref": "#/definitions/rust_pin",
+            "description": "Fully-qualified rust base pin (<rust_base_key>@<image_digest>) to build this stellar-cli release - not the same as the rustc used to compile contracts"
+          },
           "ref": {
             "$ref": "#/definitions/git_sha",
             "description": "Upstream stellar/stellar-cli git commit SHA for this release. Source of truth; version is metadata."
           },
           "rust_versions": {
-            "description": "Append-only list of fully-qualified rust base pins (<rust_base_key>@<image_digest>) this stellar-cli release was ever built against. Refreshes append the picker's freshly-resolved pins; previously-published pins are retained so the file stays consistent with the immutable tags in the registry. The same label may appear more than once with distinct digests (e.g. a rebuilt base) — each pin is its own immutable image.",
+            "description": "Append-only list of fully-qualified rust base pins (<rust_base_key>@<image_digest>) this stellar-cli release was ever built against. Refreshes append the picker's freshly-resolved pins; previously-published pins are retained so the file stays consistent with the immutable tags in the registry. The same label may appear more than once with distinct digests (e.g. a rebuilt base) \u2014 each pin is its own immutable image.",
             "items": {
               "$ref": "#/definitions/rust_pin"
             },
@@ -56,10 +60,6 @@
           "version": {
             "$ref": "#/definitions/semver",
             "description": "stellar-cli release version label, e.g. 26.0.0."
-          },
-          "cli_rust_version": {
-            "$ref": "#/definitions/rust_pin",
-            "description": "Fully-qualified rust base pin (<rust_base_key>@<image_digest>) to build this stellar-cli release - not the same as the rustc used to compile contracts"
           }
         },
         "required": [
