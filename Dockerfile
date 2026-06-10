@@ -15,7 +15,11 @@
 ARG RUST_VERSION
 ARG RUST_BASE_SUFFIX
 ARG RUST_IMAGE_DIGEST
-ARG CLI_RUST_IMAGE_DIGEST
+# Falls back to RUST_IMAGE_DIGEST so direct `docker build` usage keeps working
+# without supplying CLI_RUST_IMAGE_DIGEST. The build scripts and CI always set
+# it explicitly (from cli_rust_version) so the builder stage can diverge from
+# the final stage's base image.
+ARG CLI_RUST_IMAGE_DIGEST=${RUST_IMAGE_DIGEST}
 ARG STELLAR_CLI_REV
 ARG STELLAR_CLI_VERSION
 ARG BUILD_DATE
