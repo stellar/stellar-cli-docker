@@ -26,6 +26,8 @@ def build_matrix(data: dict, only_cli: str = "") -> dict:
         if only_cli and cli != only_cli:
             continue
         ref = entry["ref"]
+        cli_rust_pin = entry.get("cli_rust_version")
+        cli_rust_image_digest = builds.digest_of(cli_rust_pin) if cli_rust_pin else None
         # The published tag is label-only, so only the newest pin per label is
         # built — the last occurrence in rust_versions wins. builds.json keeps
         # the superseded pins as history; they are not rebuilt or republished.
@@ -38,6 +40,7 @@ def build_matrix(data: dict, only_cli: str = "") -> dict:
                 rows.append(
                     {
                         "arch": arch,
+                        "cli_rust_image_digest": cli_rust_image_digest or digest,
                         "platform": f"linux/{arch}",
                         "rust_base_id": rust_base_id,
                         "rust_base_key": label,

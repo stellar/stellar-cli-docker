@@ -28,6 +28,7 @@ def test_build_matrix_row_carries_expected_keys(minimal_builds: dict) -> None:
     row = matrix["include"][0]
     assert set(row.keys()) == {
         "arch",
+        "cli_rust_image_digest",
         "platform",
         "rust_base_id",
         "rust_base_key",
