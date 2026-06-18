@@ -126,10 +126,37 @@ def test_derive_default_rust_newest_digest_for_repeated_label() -> None:
     assert builds.derive_default_rust(data, "26.0.0") == newest
 
 
-def test_derive_default_rust_skips_non_matching_suffix(multi_cli_builds: dict) -> None:
-    # 25.1.0 has only bookworm; default_distro is trixie → no match.
+def test_derive_default_rust_falls_back_when_no_suffix_match(multi_cli_builds: dict) -> None:
+    # 25.1.0 has only bookworm; default_distro is trixie → no suffix match,
+    # so it falls back to the release's own highest pin instead of failing.
+    pin = builds.derive_default_rust(multi_cli_builds, "25.1.0")
+    assert builds.label_of(pin).endswith("-slim-bookworm")
+
+
+def test_derive_default_rust_fallback_picks_highest_version() -> None:
+    # Fallback still honours highest-version-wins across mixed non-default pins.
+    older = "1.89.0-slim-bookworm@sha256:" + "a" * 64
+    newer = "1.90.0-slim-bookworm@sha256:" + "b" * 64
+    data = {
+        "default_distro": "trixie",
+        "stellar_cli_versions": [
+            {
+                "ref": "a" * 40,
+                "version": "25.1.0",
+                "rust_versions": [older, newer],
+            }
+        ],
+    }
+    assert builds.derive_default_rust(data, "25.1.0") == newer
+
+
+def test_derive_default_rust_no_pins(multi_cli_builds: dict) -> None:
+    data = {
+        "default_distro": "trixie",
+        "stellar_cli_versions": [{"ref": "a" * 40, "version": "25.1.0", "rust_versions": []}],
+    }
     with pytest.raises(ValueError, match="no rust_versions"):
-        builds.derive_default_rust(multi_cli_builds, "25.1.0")
+        builds.derive_default_rust(data, "25.1.0")
 
 
 def test_derive_default_rust_missing_default_distro(multi_cli_builds: dict) -> None:

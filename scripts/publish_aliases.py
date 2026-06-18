@@ -2,8 +2,10 @@
 """Re-point the `:<cli>` (and `:latest` if newest) tags at the default rust pair.
 
 The default rust pair is the highest-version rust_versions[] key whose
-suffix matches `slim-<default_distro>`. `:latest` is re-pointed only if
-this cli is the newest declared one in builds.json.
+suffix matches `slim-<default_distro>`; a release predating the current
+default_distro (no matching suffix) falls back to its own highest pin.
+`:latest` is re-pointed only if this cli is the newest declared one in
+builds.json.
 """
 
 import argparse
