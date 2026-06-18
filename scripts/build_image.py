@@ -36,6 +36,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         stellar_ref = builds.stellar_cli_ref(data, args.stellar_cli_version)
         parsed = rust_keys.parse(args.rust_version)
+        entry = builds.find_cli(data, args.stellar_cli_version)
+        cli_rust_pin = entry.get("cli_rust_version") if entry else None
+        cli_rust_digest = builds.digest_of(cli_rust_pin) if cli_rust_pin else rust_digest
     except ValueError as exc:
         common.die(str(exc))
 
@@ -48,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     common.log(f"building {tag}")
     common.log(f"  stellar-cli {args.stellar_cli_version}         ({stellar_ref})")
     common.log(f"  rust {args.rust_version}           ({rust_digest})")
+    common.log(f"  cli-build rust                ({cli_rust_digest})")
     common.log(f"  base rust:{parsed.version}-{parsed.suffix}")
     common.log(f"  platform {args.platform or '<host native>'}")
 
@@ -62,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         f"RUST_BASE_SUFFIX={parsed.suffix}",
         "--build-arg",
         f"RUST_IMAGE_DIGEST={rust_digest}",
+        "--build-arg",
+        f"CLI_RUST_IMAGE_DIGEST={cli_rust_digest}",
         "--build-arg",
         f"STELLAR_CLI_REV={stellar_ref}",
         "--build-arg",
