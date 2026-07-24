@@ -89,16 +89,23 @@ def derive_default_rust(data: dict[str, Any], cli: str) -> str:
     entry = find_cli(data, cli)
     if entry is None:
         raise ValueError(f"unknown stellar-cli version: {cli}")
+    pins = entry.get("rust_versions", [])
+    if not pins:
+        raise ValueError(f"stellar-cli {cli} declares no rust_versions[] pins")
     matches = [
         (semver.parse(rust_keys.version_of(label_of(pin))), idx, pin)
-        for idx, pin in enumerate(entry.get("rust_versions", []))
+        for idx, pin in enumerate(pins)
         if label_of(pin).endswith(f"-{suffix}")
     ]
     if not matches:
-        raise ValueError(
-            f"no rust_versions[] pin matches default_distro {distro!r} "
-            f"(suffix {suffix!r}) for stellar-cli {cli}"
-        )
+        # A release predating the current default_distro (e.g. a bookworm-only
+        # back-port published after the repo switched to trixie) has no pin
+        # matching the default suffix. Fall back to the release's own pins so
+        # its `:<cli>` alias still resolves, instead of failing the publish.
+        matches = [
+            (semver.parse(rust_keys.version_of(label_of(pin))), idx, pin)
+            for idx, pin in enumerate(pins)
+        ]
     # Highest rust version wins; among equal versions (a relabelled base), the
     # last-appended pin — the freshest digest — wins.
     matches.sort(key=lambda t: (t[0], t[1]))
