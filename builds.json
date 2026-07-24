@@ -11,6 +11,13 @@
       "version": "25.1.0"
     },
     {
+      "ref": "28484880988199233a7e8e87c97cb12dac323cb3",
+      "rust_versions": [
+        "1.90.0-slim-bookworm@sha256:4f572135209e89d488fadb81d8a07309857f9b9c5280b54c85a44b71629e8cca"
+      ],
+      "version": "25.2.0"
+    },
+    {
       "ref": "60f7458e7ecffddf2f2d91dc6d0d2db4fab03ecc",
       "rust_versions": [
         "1.93.0-slim-trixie@sha256:760ad1d638d70ebbd0c61e06210e1289cbe45ff6425e3ea6e01241de3e14d08e",
