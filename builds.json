@@ -39,6 +39,14 @@
         "1.96.0-slim-trixie@sha256:3b05f7c617a200c41c3506097f0d15fc193a1c93bfd8f141007b47cac8f95d3c"
       ],
       "version": "27.0.0"
+    },
+    {
+      "ref": "8e402ea28202950b272fbabc34caad4d2f64fe87",
+      "rust_versions": [
+        "1.96.1-slim-trixie@sha256:31ee7fc65186be7e0e0ccb3f2ca305f14e4739e7642a1ae65753aa5d7b874523",
+        "1.97.1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c"
+      ],
+      "version": "27.1.0"
     }
   ]
 }
