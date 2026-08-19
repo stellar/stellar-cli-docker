@@ -6,9 +6,10 @@ This document covers the maintainer side of `stellar/stellar-cli-docker` — how
 
 Each release publishes to `docker.io/stellar/stellar-cli`:
 
-- **Per-architecture images** — `:<cli>-rust<rust>-amd64` and `:<cli>-rust<rust>-arm64`. Each one is a single-architecture manifest with its own SHA-256 digest.
-- **Multi-arch manifest list** per `(cli, rust base)` pair — `:<cli>-rust<rust>` resolves to the right per-arch image at pull time.
+- **Per-architecture images** — `:<cli>-rust<rust>-amd64` and `:<cli>-rust<rust>-arm64`. Each one is a single-architecture manifest with its own SHA-256 digest. **Mutable** — overwritten if that pair is rebuilt in a later refresh.
+- **Multi-arch manifest list** per `(cli, rust base)` pair — `:<cli>-rust<rust>` resolves to the right per-arch image at pull time. Also **mutable**.
 - **Moving tags** — `:<cli>` points at the manifest list for that cli paired with the default rust base (highest `rust_versions[]` pin whose label matches the top-level `default_distro`, newest digest wins on a tie). `:latest` points at the same derivation for the newest declared cli. Both re-point on every publish.
+- **Immutable per-arch snapshots** — `:<cli>-rust<rust>-<arch>-<N>`, one per published per-arch image, captures that image's digest at iteration `N` (the first release is `-0`, the next refresh `-1`, …). Unlike the mutable per-arch tag, it never re-points, so every per-arch digest a past release exposed stays referenced by a tag and never becomes GC-eligible — SEP-58 verifiable builds pin that digest (`bldimg`) into deployed contracts permanently (see [issue #38](https://github.com/stellar/stellar-cli-docker/issues/38)). Because it covers **every** `(rust base, arch)` the release built — not just the default pair — no published image is left unprotected. `N` is the release tag's index, so it lines up one-to-one with the GitHub Release: `v26.0.0-0` → `:…-0`, `v26.0.0-1` → `:…-1`.
 - **Two attestation chains** — buildx-native (SLSA build provenance + SPDX SBOM attached in the registry alongside the image) and GitHub-native (the same predicates signed and stored in the repo's attestation store, verifiable via `gh attestation verify`).
 - **A GitHub Release** for every publish run, with per-architecture digests in the body and the SBOM + provenance files attached as downloadable assets. The release is created by a maintainer following the link in the release PR (see [Releasing](#releasing--new-cli-version-or-refreshing-an-existing-one) below); publishing it triggers the workflow that enriches the release with the images' digests and supply-chain artifacts.
 
@@ -52,12 +53,16 @@ Because `complete` `needs` lint and build, the check can't report success until 
 
 Every release gets a unique tag. Tags are never reused or updated in place.
 
-- **First release of a stellar-cli version**: `v<version>` (e.g. `v26.0.0`).
-- **Refresh of the same stellar-cli version**: `v<version>-<N>` (e.g. `v26.0.0-1`, `v26.0.0-2`). The `-N` increments per refresh.
+- **First release of a stellar-cli version**: `v<version>-0` (e.g. `v26.0.0-0`).
+- **Refresh of the same stellar-cli version**: `v<version>-<N>` with `N` incrementing per refresh (e.g. `v26.0.0-1`, `v26.0.0-2`).
 
-The `release` workflow picks the next available tag automatically by looking at existing releases. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0` page stays intact when `v26.0.0-1` is later published.
+The `-N` index lines up one-to-one with the immutable `:<cli>-rust<key>-<arch>-<N>` Docker tags, starting at `-0`. The `release` workflow picks the next available `-N` automatically from **both** existing releases and existing `release/*` branches — so an iteration that's been prepared (branch/PR merged) but whose GitHub Release hasn't been published yet never gets its number reused. Reuse would republish those immutable tags over different digests and defeat their immutability. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0-0` page stays intact when `v26.0.0-1` is later published.
 
-Docker image tags (`:<cli>-rust<key>[-<arch>]`) are unaffected by the `-N` suffix — they're keyed by the cli version + rust base label + arch. They are **mutable**: re-publishing a `(cli, rust base)` pair (e.g. after a refreshed base) overwrites the tag in place. Moving tags (`:<cli>`, `:latest`) re-point on every publish.
+> A handful of early releases predate this scheme and use a suffixless `v<version>` tag (e.g. `v25.1.0`); those count as iteration 0, so the next refresh of such a version is `-1`.
+
+The base Docker manifest/per-arch tags (`:<cli>-rust<key>[-<arch>]`) are unaffected by the `-N` suffix — they're keyed by the cli version + rust base label + arch. They are **mutable**: re-publishing a `(cli, rust base)` pair (e.g. after a refreshed base) overwrites the tag in place. Moving tags (`:<cli>`, `:latest`) re-point on every publish.
+
+The release tag's `-N` index flows into the immutable per-arch snapshots: `:<cli>-rust<key>-<arch>-<N>` (`v26.0.0-0` → `…-0`, `v26.0.0-1` → `…-1`). One is minted for every `(rust base, arch)` the release built, pinning that image's digest at that iteration so it's never orphaned — the publish workflow derives `N` from the release tag automatically (no manual step).
 
 ## Releasing — new cli version, or refreshing an existing one
 
@@ -88,7 +93,7 @@ Same workflow for both. PR review is the gate; a GitHub Release is the publish t
 
    - Builds and pushes per-arch images for every declared (cli, rust) pair; tags are mutable, so an existing tag is overwritten in place.
    - Generates SLSA build provenance + SPDX SBOM attestations on each freshly-built image (buildx-native + GitHub-native chains).
-   - Re-points the `:<cli>` and (if newest) `:latest` aliases.
+   - Assembles the multi-arch manifest lists and mints an immutable `:<cli>-rust<key>-<arch>-<N>` snapshot for every published per-arch image (`N` from the release tag's refresh index) so each digest stays permanently tagged, then re-points the `:<cli>` and (if newest) `:latest` aliases.
    - Updates the new GitHub Release: appends per-architecture digests for every declared pair (whether built fresh or previously published) and verification commands to the body, attaches the SBOM and provenance files for the freshly-built pairs as downloadable assets.
 
 ### Manual / local prepare
@@ -129,8 +134,8 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `matrix`         | Validates `builds.json`, derives the cli version (from the release's tag name or the dispatch input), then runs `scripts/resolve_matrix.py --stellar-cli-version <v>` to produce a matrix of `(rust base key, arch)` rows for that one cli.                                                                                                                                                            |
 | `build` (matrix) | Native runner per arch (`ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64). Builds + pushes every pair via `docker/build-push-action` with `provenance: mode=max` and `sbom: true`, then attests with `actions/attest-build-provenance` and `actions/attest-sbom`. Tags are mutable, so an existing tag is overwritten. The per-arch metadata + SBOM/provenance artifacts feed the `release` job. |
-| `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<key>` per rust base. Lists are (re)created via `docker buildx imagetools create`, overwriting any existing list.                                                                                                                                                                                                                                   |
-| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default rust pin)` — the highest `rust_versions[]` pin whose label matches `default_distro`, newest digest winning a tie. If this cli is the newest declared, also re-points `:latest`. Both tags are intentionally moving; the job fails loudly if no `rust_versions[]` pin matches `default_distro`.                                               |
+| `manifest`       | Assembles the multi-arch manifest list `:<cli>-rust<key>` per rust base (overwriting any existing list), then mints the immutable `:<cli>-rust<key>-<arch>-<N>` snapshot for each per-arch image (`N` = release tag refresh index, passed via `--iteration`) so every published digest stays tagged even after the mutable tags are overwritten. All via `docker buildx imagetools create`.                                                                                                                                                                                                                                   |
+| `aliases`        | Re-points `:<cli>` to the manifest list of `(cli, default rust pin)` — the highest `rust_versions[]` pin whose label matches `default_distro`, newest digest winning a tie. If this cli is the newest declared, also re-points `:latest`. Both are intentionally moving. Fails loudly if no `rust_versions[]` pin matches `default_distro`.                                               |
 | `release`        | Downloads every per-arch metadata + (when present) SBOM/provenance artifact, calls `scripts/release_body.py` to compose a structural body section, then **appends** that section to the just-created release body and attaches the SBOM + provenance files for freshly-built pairs as release assets. Any human-written notes already in the release body are preserved.                               |
 | `complete`       | Single aggregator for the publish workflow. Fails if any upstream job failed or was cancelled.                                                                                                                                                                                                                                                                                                         |
 
@@ -138,9 +143,28 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 
 Per-architecture tags (`:<cli>-rust<key>-<arch>`) and multi-arch manifest lists (`:<cli>-rust<key>`) on Docker Hub are **mutable** — re-publishing a `(cli, rust base)` pair overwrites the tag in place. Reproducibility is anchored by the per-arch image content digest and by the `builds.json` pins, not by tag stability.
 
-Moving aliases (`:<cli>`, `:latest`) re-point each release.
+Moving aliases (`:<cli>`, `:latest`) re-point each release. The immutable `:<cli>-rust<key>-<arch>-<N>` snapshots are the exception — they're keyed by the release's refresh index, so a re-run recreates the same tags at the same digests rather than moving them.
 
 To recover from a failed run, use **Re-run failed jobs** from the GitHub Actions UI; re-runs simply rebuild and overwrite. Recovering from a corrupt push is the same — just re-run, no manual tag deletion needed.
+
+## Backfilling immutable per-arch tags for older releases
+
+Releases published before the `:<cli>-rust<key>-<arch>-<N>` snapshots existed left their per-arch digests referenced only by mutable tags — orphaned (and thus GC-eligible) the moment a later iteration overwrote them. While those digests still exist in the registry, `scripts/backfill_iteration_tags.py` reconstructs the missing snapshot tags. For each release iteration of a cli it reads that release's `builds.json` at its git tag (fetched from `--repo` via the GitHub API — no local clone or fetched tags required), enumerates every `(rust base, arch)` it published (newest pin per label), recovers each per-arch digest from the release's `prov-*.intoto.jsonl` attestation assets, and recreates `:<cli>-rust<key>-<arch>-<N>` pinning it. (The per-arch digests aren't read from `meta-*.json` because that file is only a 7-day workflow artifact, never a release asset — the provenance bundles are.) It skips per-arch tags that already exist, so it's safe to re-run.
+
+Because it's manual and needs the Docker Hub credentials, it runs via the **backfill iteration tags** workflow (`workflow_dispatch` in `.github/workflows/backfill.yml`) — trigger it from the Actions UI with the target cli version (and `dry_run` to preview). It can also be run locally:
+
+```sh
+# Preview what would be created (needs gh auth + Docker registry login):
+./scripts/backfill_iteration_tags.py --stellar-cli-version 25.1.0 --dry-run
+
+# Create the missing tags:
+./scripts/backfill_iteration_tags.py --stellar-cli-version 25.1.0
+
+# Point at a fork/experimental repo + registry for testing:
+./scripts/backfill_iteration_tags.py --stellar-cli-version 26.1.0 \
+  --repo stellar-experimental/stellar-cli-docker \
+  --registry docker.io/fnando/stellar-cli --dry-run
+```
 
 ## Base image policy
 

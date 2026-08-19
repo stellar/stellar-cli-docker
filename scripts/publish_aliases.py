@@ -6,6 +6,11 @@ suffix matches `slim-<default_distro>`; a release predating the current
 default_distro (no matching suffix) falls back to its own highest pin.
 `:latest` is re-pointed only if this cli is the newest declared one in
 builds.json.
+
+`:<cli>` and `:latest` are intentionally moving — they re-point on every
+publish. GC-safety for the digests they used to resolve to is provided by the
+immutable per-arch `:<cli>-rust<key>-<arch>-<iteration>` tags minted in
+`scripts/publish_manifests.py` (see issue #38), not here.
 """
 
 import argparse

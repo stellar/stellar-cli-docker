@@ -50,7 +50,9 @@ def pins_newest_first(rows: list[dict]) -> list[str]:
     return sorted(seen.keys(), key=lambda t: (seen[t], t), reverse=True)
 
 
-def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_ref: str) -> str:
+def emit_body(
+    *, cli: str, iteration: int, rows: list[dict], registry: str, repo: str, stellar_ref: str
+) -> str:
     out = io.StringIO()
     p = lambda *args: print(*args, file=out)  # noqa: E731
 
@@ -62,11 +64,19 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
     p(f"- `{registry}:latest` — newest declared cli, default Rust")
     p(f"- `{registry}:{cli}` — this cli, default Rust")
     p()
-    p(f"Pinned to stellar-cli `{stellar_ref}`:\n")
+    p(f"Pinned to stellar-cli `{stellar_ref}` (mutable — overwritten if this pair is refreshed):\n")
     for tag in pins_newest_first(rows):
         p(f"- `{registry}:{tag}` — multi-arch")
         for row in [r for r in rows if list_tag(r) == tag]:
             p(f"- `{registry}:{row['tag']}`")
+    p()
+    p(
+        "Immutable per-release snapshots (never re-point; keep this release's "
+        "per-arch digests permanently tagged — see issue #38):\n"
+    )
+    for tag in pins_newest_first(rows):
+        for row in [r for r in rows if list_tag(r) == tag]:
+            p(f"- `{registry}:{row['tag']}-{iteration}`")
 
     p("\n## Per-architecture digests (for SEP-58 `bldimg`)\n")
     p(
@@ -124,6 +134,7 @@ def emit_body(*, cli: str, rows: list[dict], registry: str, repo: str, stellar_r
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--stellar-cli-version", required=True, metavar="V")
+    parser.add_argument("--iteration", required=True, type=int, metavar="N")
     parser.add_argument("--metadata-dir", required=True, metavar="PATH")
     parser.add_argument("--registry", default="docker.io/stellar/stellar-cli", metavar="REF")
     parser.add_argument("--repo", default="stellar/stellar-cli-docker", metavar="SLUG")
@@ -144,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
 
     body = emit_body(
         cli=args.stellar_cli_version,
+        iteration=args.iteration,
         rows=rows,
         registry=args.registry,
         repo=args.repo,

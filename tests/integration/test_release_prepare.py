@@ -15,13 +15,27 @@ def staged_minimal(tmp_path: Path, fixtures_dir: Path, monkeypatch: pytest.Monke
     return target
 
 
+@pytest.fixture(autouse=True)
+def _no_release_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Default: no in-flight release branches. Tests that exercise branch-aware
+    # picking override this explicitly.
+    monkeypatch.setattr(release_prepare.gh_cli, "list_release_branch_tags", lambda _: [])
+
+
 def test_pick_release_tag_no_prior_releases(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(release_prepare.gh_cli, "list_release_tags", lambda _: [])
-    assert release_prepare.pick_release_tag("26.0.0", "foo/bar") == "v26.0.0"
+    assert release_prepare.pick_release_tag("26.0.0", "foo/bar") == "v26.0.0-0"
 
 
 def test_pick_release_tag_first_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A grandfathered suffixless v26.0.0 counts as iteration 0, so next is -1.
     monkeypatch.setattr(release_prepare.gh_cli, "list_release_tags", lambda _: ["v26.0.0"])
+    assert release_prepare.pick_release_tag("26.0.0", "foo/bar") == "v26.0.0-1"
+
+
+def test_pick_release_tag_first_refresh_from_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Under the new scheme the first release is v26.0.0-0; next is -1.
+    monkeypatch.setattr(release_prepare.gh_cli, "list_release_tags", lambda _: ["v26.0.0-0"])
     assert release_prepare.pick_release_tag("26.0.0", "foo/bar") == "v26.0.0-1"
 
 
@@ -42,7 +56,31 @@ def test_pick_release_tag_ignores_other_clis(monkeypatch: pytest.MonkeyPatch) ->
         "list_release_tags",
         lambda _: ["v25.1.0-3", "v27.0.0"],
     )
-    assert release_prepare.pick_release_tag("26.0.0", "foo/bar") == "v26.0.0"
+    assert release_prepare.pick_release_tag("26.0.0", "foo/bar") == "v26.0.0-0"
+
+
+def test_pick_release_tag_avoids_prepared_but_unpublished_iteration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # v27.0.0-1 was merged but its GitHub Release was never published, so it's
+    # absent from `list_release_tags` yet its branch persists. The next tag must
+    # skip to -2 instead of reusing -1 (which would clobber the immutable tag).
+    monkeypatch.setattr(release_prepare.gh_cli, "list_release_tags", lambda _: ["v27.0.0"])
+    monkeypatch.setattr(
+        release_prepare.gh_cli,
+        "list_release_branch_tags",
+        lambda _: ["v27.0.0", "v27.0.0-1"],
+    )
+    assert release_prepare.pick_release_tag("27.0.0", "foo/bar") == "v27.0.0-2"
+
+
+def test_pick_release_tag_first_refresh_when_only_branch_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The initial release branch exists but its Release isn't published yet.
+    monkeypatch.setattr(release_prepare.gh_cli, "list_release_tags", lambda _: [])
+    monkeypatch.setattr(release_prepare.gh_cli, "list_release_branch_tags", lambda _: ["v27.0.0"])
+    assert release_prepare.pick_release_tag("27.0.0", "foo/bar") == "v27.0.0-1"
 
 
 def test_main_delegates_to_refresh_and_emits_tag(
@@ -75,7 +113,7 @@ def test_main_delegates_to_refresh_and_emits_tag(
         ["--stellar-cli-version", "27.0.0", "--rust-versions", "1.95.0-slim-trixie"]
     )
     assert rc == 0
-    assert capsys.readouterr().out == "v27.0.0\n"
+    assert capsys.readouterr().out == "v27.0.0-0\n"
     # The cli version and the rust-versions override are forwarded to refresh.
     assert captured_argv[0][:2] == ["--stellar-cli-version", "27.0.0"]
     assert "--rust-versions" in captured_argv[0]

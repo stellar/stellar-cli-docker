@@ -22,6 +22,27 @@ def test_main_publishes_cli_alias_and_latest_for_newest(
     assert "docker.io/stellar/stellar-cli:latest" in aliases
 
 
+def test_main_publishes_no_immutable_iteration_tag(
+    monkeypatch: pytest.MonkeyPatch, multi_cli_builds: dict
+) -> None:
+    # Immutable tags now live in publish_manifests; aliases only mints moving tags.
+    monkeypatch.setattr(publish_aliases.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(publish_aliases.builds, "load", lambda: multi_cli_builds)
+    captured = MagicMock()
+    monkeypatch.setattr(publish_aliases.docker_inspect, "create_manifest", captured)
+
+    rc = publish_aliases.main(["--stellar-cli-version", "26.0.0"])
+
+    assert rc == 0
+    aliases = [call.args[0] for call in captured.call_args_list]
+    # No :<cli>-<iteration> snapshot is created here anymore.
+    assert not any(a.endswith(":26.0.0-3") or a.endswith(":26.0.0-0") for a in aliases)
+    assert aliases == [
+        "docker.io/stellar/stellar-cli:26.0.0",
+        "docker.io/stellar/stellar-cli:latest",
+    ]
+
+
 def test_main_skips_latest_for_non_newest(monkeypatch: pytest.MonkeyPatch) -> None:
     # Both clis carry a trixie key so derive_default_rust succeeds; 26.0.0 is newest.
     pin = "1.94.0-slim-trixie@sha256:" + "a" * 64

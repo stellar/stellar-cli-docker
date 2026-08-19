@@ -21,17 +21,26 @@ ITERATION_RE = re.compile(r"^v(?P<cli>[0-9]+\.[0-9]+\.[0-9]+)(?:-(?P<n>[0-9]+))?
 
 
 def pick_release_tag(cli: str, repo: str) -> str:
-    """Next available GitHub Release tag: v<cli>, or v<cli>-N for refreshes."""
-    existing = gh_cli.list_release_tags(repo)
-    if f"v{cli}" not in existing:
-        return f"v{cli}"
-    max_iter = 0
+    """Next available GitHub Release tag: v<cli>-0 first, then v<cli>-1, -2, ...
+
+    The iteration `-N` matches the immutable `:<cli>-rust<key>-<arch>-<N>` Docker
+    tags one-to-one, starting at `-0` for the first release. It's picked from both published
+    releases and existing `release/*` branches, so a refresh that's been
+    prepared (branch/PR) but not yet published doesn't get its number reused —
+    reuse would let a later publish overwrite the immutable Docker tag pinned by
+    SEP-58 `bldimg` (issue #38). A grandfathered suffixless `v<cli>` tag from
+    before this scheme counts as iteration 0.
+    """
+    existing = set(gh_cli.list_release_tags(repo)) | set(gh_cli.list_release_branch_tags(repo))
+    iterations: list[int] = []
     for tag in existing:
         match = ITERATION_RE.match(tag)
-        if not match or match["cli"] != cli or match["n"] is None:
+        if not match or match["cli"] != cli:
             continue
-        max_iter = max(max_iter, int(match["n"]))
-    return f"v{cli}-{max_iter + 1}"
+        iterations.append(0 if match["n"] is None else int(match["n"]))
+    if not iterations:
+        return f"v{cli}-0"
+    return f"v{cli}-{max(iterations) + 1}"
 
 
 def build_parser() -> argparse.ArgumentParser:

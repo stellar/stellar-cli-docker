@@ -1,7 +1,7 @@
 """Adapter around the `gh` CLI.
 
-Wraps the three gh subcommands the project uses (release list, pr list,
-attestation verify) so tests can patch one symbol per script.
+Wraps the gh subcommands the project uses (release list, release download,
+pr list, attestation verify) so tests can patch one symbol per script.
 """
 
 import json
@@ -25,6 +25,69 @@ def list_release_tags(repo: str) -> list[str]:
         ]
     )
     return [item["tagName"] for item in json.loads(out)]
+
+
+def list_release_branch_tags(repo: str) -> list[str]:
+    """Release tags of the `release/<tag>` branches that exist on the repo.
+
+    A release branch is created at prepare time and persists across the
+    merge -> publish gap (merging the PR doesn't publish the GitHub
+    Release). Consulting it stops the tag picker from reusing an iteration
+    that's already been prepared but not yet published — which would let a
+    later publish overwrite the immutable `:<cli>-rust<key>-<arch>-<N>` tags.
+    """
+    out = runner.capture(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/git/matching-refs/heads/release/",
+            "--jq",
+            ".[].ref",
+        ]
+    )
+    prefix = "refs/heads/release/"
+    return [line[len(prefix) :] for line in out.splitlines() if line.startswith(prefix)]
+
+
+def read_repo_file(repo: str, ref: str, path: str) -> str:
+    """Fetch a file's raw contents from a repo at a git ref via the GitHub API.
+
+    Works without a local clone or fetched tags, and honours `repo` so it
+    reads from the same repository the release lives in (which may differ
+    from the local checkout, e.g. a fork used for testing).
+    """
+    return runner.capture(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/contents/{path}?ref={ref}",
+            "-H",
+            "Accept: application/vnd.github.raw",
+        ]
+    )
+
+
+def download_release_assets(repo: str, tag: str, pattern: str, dest_dir: str) -> None:
+    """Download a release's assets matching a glob into dest_dir.
+
+    `--clobber` makes re-runs idempotent; `--pattern` limits the download
+    to just the files we need (e.g. `meta-*.json`).
+    """
+    runner.run(
+        [
+            "gh",
+            "release",
+            "download",
+            tag,
+            "--repo",
+            repo,
+            "--pattern",
+            pattern,
+            "--dir",
+            dest_dir,
+            "--clobber",
+        ]
+    )
 
 
 def open_pr_for_branch(repo: str, branch: str) -> int | None:
