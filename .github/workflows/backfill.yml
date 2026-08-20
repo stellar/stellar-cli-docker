@@ -19,7 +19,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read  # gh CLI reads release tags, files, and assets from the repo
+  contents: read  # gh CLI reads the repo's release tags to resolve the iteration
 
 env:
   # Override per-repo via Settings → Variables → Actions (vars.REGISTRY).
@@ -45,7 +45,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: backfill iteration tags
         env:
-          GH_TOKEN: ${{ github.token }}  # gh CLI auth for release/file/asset reads
+          GH_TOKEN: ${{ github.token }}  # gh CLI auth for release tag reads
         run: |
           ./scripts/backfill_iteration_tags.py \
             --stellar-cli-version "${{ inputs.stellar_cli_version }}" \

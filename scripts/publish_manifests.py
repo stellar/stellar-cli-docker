@@ -80,6 +80,27 @@ def create(tag: str, *sources: str, dry_run: bool) -> None:
     common.log("::endgroup::")
 
 
+def create_snapshot(snapshot: str, arch_ref: str, *, dry_run: bool) -> None:
+    """Mint an immutable per-arch snapshot, refusing to re-point an existing one.
+
+    The tag's whole purpose is to never move, so a re-run must not overwrite it.
+    If it already exists we leave it alone when it still pins the same digest,
+    and fail loudly if it points somewhere else (a real immutability violation)
+    rather than silently clobbering an on-chain `bldimg` anchor.
+    """
+    if not dry_run and docker_inspect.exists(snapshot):
+        existing = docker_inspect.index_digest(snapshot)
+        current = docker_inspect.index_digest(arch_ref)
+        if existing == current:
+            common.log(f"skip {snapshot}: already pins {existing}")
+            return
+        common.die(
+            f"{snapshot} already exists pinning {existing}, "
+            f"but this run built {current}; refusing to re-point an immutable tag"
+        )
+    create(snapshot, arch_ref, dry_run=dry_run)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.iteration < 0:
@@ -112,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                 arch=arch,
                 iteration=args.iteration,
             )
-            create(snapshot, arch_ref, dry_run=args.dry_run)
+            create_snapshot(snapshot, arch_ref, dry_run=args.dry_run)
 
     return 0
 

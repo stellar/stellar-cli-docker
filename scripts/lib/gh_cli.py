@@ -1,6 +1,6 @@
 """Adapter around the `gh` CLI.
 
-Wraps the gh subcommands the project uses (release list, release download,
+Wraps the gh subcommands the project uses (release list, matching-refs,
 pr list, attestation verify) so tests can patch one symbol per script.
 """
 
@@ -41,53 +41,16 @@ def list_release_branch_tags(repo: str) -> list[str]:
             "gh",
             "api",
             f"repos/{repo}/git/matching-refs/heads/release/",
+            # matching-refs is paginated (30/page); --paginate walks every page
+            # so a large backlog of prepared release branches can't hide one and
+            # let its reserved iteration be reused.
+            "--paginate",
             "--jq",
             ".[].ref",
         ]
     )
     prefix = "refs/heads/release/"
     return [line[len(prefix) :] for line in out.splitlines() if line.startswith(prefix)]
-
-
-def read_repo_file(repo: str, ref: str, path: str) -> str:
-    """Fetch a file's raw contents from a repo at a git ref via the GitHub API.
-
-    Works without a local clone or fetched tags, and honours `repo` so it
-    reads from the same repository the release lives in (which may differ
-    from the local checkout, e.g. a fork used for testing).
-    """
-    return runner.capture(
-        [
-            "gh",
-            "api",
-            f"repos/{repo}/contents/{path}?ref={ref}",
-            "-H",
-            "Accept: application/vnd.github.raw",
-        ]
-    )
-
-
-def download_release_assets(repo: str, tag: str, pattern: str, dest_dir: str) -> None:
-    """Download a release's assets matching a glob into dest_dir.
-
-    `--clobber` makes re-runs idempotent; `--pattern` limits the download
-    to just the files we need (e.g. `prov-*.intoto.jsonl`).
-    """
-    runner.run(
-        [
-            "gh",
-            "release",
-            "download",
-            tag,
-            "--repo",
-            repo,
-            "--pattern",
-            pattern,
-            "--dir",
-            dest_dir,
-            "--clobber",
-        ]
-    )
 
 
 def open_pr_for_branch(repo: str, branch: str) -> int | None:

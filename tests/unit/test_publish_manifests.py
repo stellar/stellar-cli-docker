@@ -33,6 +33,7 @@ def test_main_creates_list_and_immutable_per_arch_tags(
 ) -> None:
     monkeypatch.setattr(publish_manifests.common, "preflight_checks", lambda _: None)
     monkeypatch.setattr(publish_manifests.builds, "load", lambda: multi_cli_builds)
+    monkeypatch.setattr(publish_manifests.docker_inspect, "exists", lambda ref: False)
     captured = MagicMock()
     monkeypatch.setattr(publish_manifests.docker_inspect, "create_manifest", captured)
 
@@ -51,6 +52,7 @@ def test_main_immutable_tag_sources_the_mutable_per_arch_tag(
 ) -> None:
     monkeypatch.setattr(publish_manifests.common, "preflight_checks", lambda _: None)
     monkeypatch.setattr(publish_manifests.builds, "load", lambda: multi_cli_builds)
+    monkeypatch.setattr(publish_manifests.docker_inspect, "exists", lambda ref: False)
     captured = MagicMock()
     monkeypatch.setattr(publish_manifests.docker_inspect, "create_manifest", captured)
 
@@ -61,6 +63,45 @@ def test_main_immutable_tag_sources_the_mutable_per_arch_tag(
     assert calls[f"{reg}:26.0.0-rust1.94.0-slim-trixie-amd64-1"] == (
         f"{reg}:26.0.0-rust1.94.0-slim-trixie-amd64",
     )
+
+
+def test_main_skips_existing_snapshot_with_same_digest(
+    monkeypatch: pytest.MonkeyPatch, multi_cli_builds: dict
+) -> None:
+    monkeypatch.setattr(publish_manifests.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(publish_manifests.builds, "load", lambda: multi_cli_builds)
+    # Every snapshot already exists and pins the same digest as this run built.
+    monkeypatch.setattr(publish_manifests.docker_inspect, "exists", lambda ref: True)
+    monkeypatch.setattr(
+        publish_manifests.docker_inspect, "index_digest", lambda ref: "sha256:" + "a" * 64
+    )
+    captured = MagicMock()
+    monkeypatch.setattr(publish_manifests.docker_inspect, "create_manifest", captured)
+
+    assert publish_manifests.main(["--stellar-cli-version", "26.0.0", "--iteration", "0"]) == 0
+    # Snapshots are left untouched; only the 2 mutable list tags are (re)written.
+    tags = [call.args[0] for call in captured.call_args_list]
+    assert captured.call_count == 2
+    assert all("-amd64-" not in tag and "-arm64-" not in tag for tag in tags)
+
+
+def test_main_dies_when_existing_snapshot_pins_a_different_digest(
+    monkeypatch: pytest.MonkeyPatch, multi_cli_builds: dict
+) -> None:
+    monkeypatch.setattr(publish_manifests.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(publish_manifests.builds, "load", lambda: multi_cli_builds)
+    monkeypatch.setattr(publish_manifests.docker_inspect, "exists", lambda ref: True)
+    # The immutable snapshot (`…-<arch>-0`) pins a different digest than the
+    # freshly built per-arch tag (`…-<arch>`) — an immutability violation.
+    monkeypatch.setattr(
+        publish_manifests.docker_inspect,
+        "index_digest",
+        lambda ref: "sha256:" + ("a" if ref.endswith("-0") else "b") * 64,
+    )
+    monkeypatch.setattr(publish_manifests.docker_inspect, "create_manifest", MagicMock())
+
+    with pytest.raises(SystemExit):
+        publish_manifests.main(["--stellar-cli-version", "26.0.0", "--iteration", "0"])
 
 
 def test_main_unknown_cli_dies(monkeypatch: pytest.MonkeyPatch, multi_cli_builds: dict) -> None:

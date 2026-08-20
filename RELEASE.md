@@ -149,12 +149,14 @@ To recover from a failed run, use **Re-run failed jobs** from the GitHub Actions
 
 ## Backfilling immutable per-arch tags for older releases
 
-Releases published before the `:<cli>-rust<key>-<arch>-<N>` snapshots existed left their per-arch digests referenced only by mutable tags — orphaned (and thus GC-eligible) the moment a later iteration overwrote them. While those digests still exist in the registry, `scripts/backfill_iteration_tags.py` reconstructs the missing snapshot tags. For each release iteration of a cli it reads that release's `builds.json` at its git tag (fetched from `--repo` via the GitHub API — no local clone or fetched tags required), enumerates every `(rust base, arch)` it published (newest pin per label), recovers each per-arch digest from the release's `prov-*.intoto.jsonl` attestation assets, and recreates `:<cli>-rust<key>-<arch>-<N>` pinning it. (The per-arch digests aren't read from `meta-*.json` because that file is only a 7-day workflow artifact, never a release asset — the provenance bundles are.) It skips per-arch tags that already exist, so it's safe to re-run.
+Releases published before the `:<cli>-rust<key>-<arch>-<N>` snapshots existed left their per-arch digests referenced only by mutable tags — orphaned (and thus GC-eligible) the moment a later iteration overwrites them. `scripts/backfill_iteration_tags.py` reconstructs the missing snapshot tags while those digests are still reachable. It sources the digests from the registry's **current tag state**, not from release provenance: it reads the repo's live tags from the Docker Hub API, takes the per-arch digest each `:<cli>-rust<key>-<arch>` tag exposes right now, resolves the iteration `N` from the highest `v<cli>[-N]` release tag (fetched from `--repo`), and recreates `:<cli>-rust<key>-<arch>-<N>` pinning that digest. It skips per-arch tags that already exist, so it's safe to re-run.
+
+Tag state is used rather than provenance for two reasons. The OCI/Docker Hub API has no way to list *untagged* manifests, so a digest a live tag still points at is the only kind that can be protected (anything already orphaned is unrecoverable — but nothing at issue is orphaned yet, only at risk). And it covers releases whose provenance was never published: `v25.1.0` and `v25.2.0` (the [issue #38](https://github.com/stellar/stellar-cli-docker/issues/38) cases) both had publish runs that failed *after* pushing the per-arch images but before the provenance step, so no `prov-*.intoto.jsonl` exists — yet the images remain tagged and their digests are recoverable here. Only the newest iteration's content is reachable, since a superseded iteration's per-arch tag was already overwritten; the script labels what it finds with that newest `N`.
 
 Because it's manual and needs the Docker Hub credentials, it runs via the **backfill iteration tags** workflow (`workflow_dispatch` in `.github/workflows/backfill.yml`) — trigger it from the Actions UI with the target cli version (and `dry_run` to preview). It can also be run locally:
 
 ```sh
-# Preview what would be created (needs gh auth + Docker registry login):
+# Preview what would be created (needs gh auth + a running Docker daemon):
 ./scripts/backfill_iteration_tags.py --stellar-cli-version 25.1.0 --dry-run
 
 # Create the missing tags:

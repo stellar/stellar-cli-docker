@@ -10,36 +10,38 @@ registry garbage collection, which breaks on-chain reproducibility.
 
 The publish workflow now mints an immutable `:<cli>-rust<key>-<arch>-<iteration>`
 tag per released image (see `scripts/publish_manifests.py`). This one-shot script
-reconstructs those tags for releases that predate that change, while the orphaned
-digests still exist in the registry.
+reconstructs those tags for releases that predate that change.
 
-For each release iteration of the given cli (`v<cli>` -> 0, `v<cli>-<N>` -> N):
-  1. Read that release's builds.json snapshot at its git tag (from `--repo` via
-     the GitHub API, so no local clone or fetched tags are needed) to enumerate
-     the (rust base, arch) pairs it published — the newest pin per label, exactly
-     what the build matrix built.
-  2. Download each pair's `prov-*.intoto.jsonl` assets and recover the per-arch
-     content digests from each attestation's subject. `meta-*.json` only ever
-     lives as a 7-day workflow artifact — it is never attached to the release —
-     so the SEP-58-relevant digests are read from the provenance bundles, which
-     the publish workflow does upload to the release permanently.
-  3. `docker buildx imagetools create` an immutable
-     `:<cli>-rust<key>-<arch>-<iteration>` tag for each digest, re-referencing it
-     so it is no longer untagged.
+It sources the per-arch digests straight from the registry's *current* tag
+state, not from release provenance. Two reasons:
+
+  1. The OCI/Docker Hub API cannot list untagged manifests, so the only digests
+     that can still be protected are the ones a live tag points at right now.
+     Anything already orphaned is unrecoverable — but nothing motivating this
+     change is orphaned yet, only at risk of being orphaned by a future publish.
+  2. It sidesteps releases whose provenance was never published. v25.1.0 and
+     v25.2.0 — the releases issue #38 is about — both had publish runs that
+     failed after pushing the per-arch images but before the provenance step, so
+     no `prov-*.intoto.jsonl` exists, yet the images remain tagged and their
+     digests are recoverable here.
+
+For the given cli:
+  1. Resolve iteration `N` — the highest `v<cli>[-N]` release tag. The mutable
+     per-arch tags reflect that newest iteration's content, which is all the
+     registry still exposes (superseded iterations were orphaned when overwritten
+     and cannot be recovered).
+  2. Read the per-arch digest each current `:<cli>-rust<key>-<arch>` tag exposes.
+  3. `docker buildx imagetools create` an immutable `:<cli>-rust<key>-<arch>-<N>`
+     tag for each digest, re-referencing it so it can no longer become untagged.
 
 Per-arch tags that already exist are skipped, so the script is safe to re-run.
 """
 
 import argparse
-import base64
-import json
-import subprocess
+import re
 import sys
-import tempfile
-from pathlib import Path
 
-import tag_names
-from lib import builds, common, docker_inspect, gh_cli
+from lib import common, docker_inspect, dockerhub, gh_cli
 
 # Fixed arch order so the work (and its logs) are deterministic.
 ARCHES = ("amd64", "arm64")
@@ -66,55 +68,55 @@ def iterations_for_cli(tags: list[str], cli: str) -> list[tuple[str, int]]:
     return sorted(found, key=lambda pair: pair[1])
 
 
-def load_builds_at_ref(repo: str, ref: str) -> dict:
-    """Parse builds.json as it stood at a repo's git ref (e.g. a release tag)."""
-    return json.loads(gh_cli.read_repo_file(repo, ref, "builds.json"))
+def latest_iteration(tags: list[str], cli: str) -> int | None:
+    """The newest release iteration for a cli, or None if it has no releases.
 
-
-def latest_pins_by_label(entry: dict) -> dict[str, str]:
-    """The newest pin per rust base label — the pairs the build matrix built.
-
-    Mirrors `resolve_matrix.build_matrix`: builds.json keeps superseded pins as
-    history but only the last occurrence of each label is published, so only its
-    assets exist on the release.
+    The mutable per-arch tags reflect the newest iteration that reached the
+    build+push step, so its index is the one the recovered digests belong to.
     """
-    return {builds.label_of(pin): pin for pin in entry.get("rust_versions", [])}
+    iterations = iterations_for_cli(tags, cli)
+    if not iterations:
+        return None
+    return max(iteration for _, iteration in iterations)
 
 
-def rust_base_id(pin: str) -> str:
-    """The `<label>-<short-digest>` id the publish workflow bakes into asset names.
+def _per_arch_tag_re(cli: str) -> re.Pattern[str]:
+    """Matches a mutable per-arch tag `:<cli>-rust<key>-<arch>` for this cli.
 
-    Matches `resolve_matrix.build_matrix`, so `prov-<cli>-rust<id>-<arch>.intoto.jsonl`
-    resolves to the assets actually uploaded for this pair.
+    The immutable snapshots (`…-<arch>-<N>`) end in a digit and the multi-arch
+    list tags (`…-rust<key>`) have no arch suffix, so neither is matched here.
     """
-    label, digest = builds.split_entry(pin)
-    return f"{label}-{tag_names.short_digest(digest)}"
+    arches = "|".join(ARCHES)
+    return re.compile(rf"^{re.escape(cli)}-rust(?P<key>.+)-(?P<arch>{arches})$")
 
 
-def prov_pattern(cli: str, base_id: str) -> str:
-    """Glob for both arch provenance bundles of one (cli, rust base) pair."""
-    return f"prov-{cli}-rust{base_id}-*.intoto.jsonl"
+def _arch_digest(tag_obj: dict, arch: str) -> str | None:
+    """The linux/<arch> image digest a Hub tag record exposes, if any.
 
-
-def subject_digest(path: Path) -> str:
-    """The image digest attested by a `prov-*.intoto.jsonl` bundle's subject.
-
-    The in-toto statement is base64-encoded inside the DSSE envelope; its lone
-    subject is the per-arch image the publish workflow pushed and attested.
+    A per-arch tag also carries an `unknown/unknown` attestation manifest; only
+    the real platform image is a `bldimg` anchor, so match on architecture + os.
     """
-    envelope = json.loads(path.read_text())
-    statement = json.loads(base64.b64decode(envelope["dsseEnvelope"]["payload"]))
-    return f"sha256:{statement['subject'][0]['digest']['sha256']}"
+    for image in tag_obj.get("images", []):
+        if image.get("architecture") == arch and image.get("os") == "linux":
+            digest = image.get("digest")
+            if digest:
+                return digest
+    return None
 
 
-def digests_by_arch(directory: Path, cli: str, base_id: str) -> dict[str, str]:
-    """`arch -> sha256:...` recovered from each provenance bundle present."""
-    out: dict[str, str] = {}
-    for arch in ARCHES:
-        path = directory / f"prov-{cli}-rust{base_id}-{arch}.intoto.jsonl"
-        if path.exists():
-            out[arch] = subject_digest(path)
-    return out
+def current_pairs(tags: list[dict], cli: str) -> dict[tuple[str, str], str]:
+    """`(rust key, arch) -> digest` for every per-arch tag the repo exposes now."""
+    pattern = _per_arch_tag_re(cli)
+    pairs: dict[tuple[str, str], str] = {}
+    for tag_obj in tags:
+        match = pattern.match(tag_obj.get("name", ""))
+        if match is None:
+            continue
+        arch = match.group("arch")
+        digest = _arch_digest(tag_obj, arch)
+        if digest:
+            pairs[(match.group("key"), arch)] = digest
+    return pairs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -130,57 +132,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def backfill_pair(
-    *,
-    repo: str,
-    tag: str,
-    iteration: int,
-    cli: str,
-    label: str,
-    pin: str,
-    registry: str,
-    dry_run: bool,
-) -> int:
-    """Reconstruct the missing per-arch immutable tags for one (cli, rust) pair.
-
-    Returns the number of arches that could not be reconstructed (0 on success).
-    """
-    targets = {arch: f"{registry}:{cli}-rust{label}-{arch}-{iteration}" for arch in ARCHES}
-    pending: dict[str, str] = {}
-    for arch, target in targets.items():
-        if docker_inspect.exists(target):
-            common.log(f"skip {target}: already tagged")
-        else:
-            pending[arch] = target
-    if not pending:
-        return 0
-
-    base_id = rust_base_id(pin)
-    try:
-        with tempfile.TemporaryDirectory(prefix="backfill-prov-") as tmp:
-            gh_cli.download_release_assets(repo, tag, prov_pattern(cli, base_id), tmp)
-            digests = digests_by_arch(Path(tmp), cli, base_id)
-    except (subprocess.CalledProcessError, RuntimeError, ValueError, KeyError) as exc:
-        common.err(f"{tag}: cannot read prov-*.intoto.jsonl for pair '{label}': {exc}")
-        return len(pending)
-
-    failures = 0
-    for arch, target in pending.items():
-        digest = digests.get(arch)
-        if digest is None:
-            common.err(f"{tag}: no prov bundle for pair '{label}' arch '{arch}'")
-            failures += 1
-            continue
-        source = f"{registry}@{digest}"
-        common.log(f"::group::backfill {target} -> {source}")
-        if dry_run:
-            common.log(f"docker buildx imagetools create --tag {target} {source}")
-        else:
-            docker_inspect.create_manifest(target, source)
-        common.log("::endgroup::")
-    return failures
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     common.preflight_checks(["buildx", "gh"])
@@ -188,40 +139,33 @@ def main(argv: list[str] | None = None) -> int:
     cli = args.stellar_cli_version
     registry = args.registry
 
-    tags = gh_cli.list_release_tags(args.repo)
-    iterations = iterations_for_cli(tags, cli)
-    if not iterations:
+    iteration = latest_iteration(gh_cli.list_release_tags(args.repo), cli)
+    if iteration is None:
         common.die(f"no published releases found for stellar-cli {cli}")
 
-    failures = 0
-    for tag, iteration in iterations:
-        try:
-            snapshot = load_builds_at_ref(args.repo, tag)
-            entry = builds.find_cli(snapshot, cli)
-            if entry is None:
-                raise ValueError(f"builds.json at {tag} declares no stellar-cli {cli}")
-            pins = latest_pins_by_label(entry)
-            if not pins:
-                raise ValueError(f"builds.json at {tag} declares no rust_versions[] for {cli}")
-        except (ValueError, RuntimeError) as exc:
-            common.err(f"{tag}: cannot enumerate published pairs: {exc}")
-            failures += 1
+    repo_path = dockerhub.repo_path(registry)
+    pairs = current_pairs(dockerhub.list_tags(repo_path), cli)
+    if not pairs:
+        common.die(f"no per-arch tags found for stellar-cli {cli} on {repo_path}")
+
+    created = 0
+    skipped = 0
+    for (key, arch), digest in sorted(pairs.items()):
+        target = f"{registry}:{cli}-rust{key}-{arch}-{iteration}"
+        if docker_inspect.exists(target):
+            common.log(f"skip {target}: already tagged")
+            skipped += 1
             continue
+        source = f"{registry}@{digest}"
+        common.log(f"::group::backfill {target} -> {source}")
+        if args.dry_run:
+            common.log(f"docker buildx imagetools create --tag {target} {source}")
+        else:
+            docker_inspect.create_manifest(target, source)
+        common.log("::endgroup::")
+        created += 1
 
-        for label, pin in sorted(pins.items()):
-            failures += backfill_pair(
-                repo=args.repo,
-                tag=tag,
-                iteration=iteration,
-                cli=cli,
-                label=label,
-                pin=pin,
-                registry=registry,
-                dry_run=args.dry_run,
-            )
-
-    if failures:
-        common.die(f"{failures} per-arch tag(s) could not be backfilled")
+    common.log(f"backfill complete: {created} created, {skipped} already tagged")
     return 0
 
 
