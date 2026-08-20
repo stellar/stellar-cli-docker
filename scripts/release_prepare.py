@@ -60,6 +60,11 @@ def main(argv: list[str] | None = None) -> int:
         # No builds.json mutation → no docker/refresh work, just a tag for the
         # empty-commit refresh the push step will create.
         common.preflight_checks(["gh", "git"])
+        if builds.find_cli(builds.load(), cli) is None:
+            common.die(
+                f"stellar-cli {cli} is not declared in builds.json — nothing to "
+                f"republish. Run without --skip-manifest-update to stage it first."
+            )
         common.log("skipping builds.json update (--skip-manifest-update)")
     else:
         common.preflight_checks(["gh", "git", "buildx"])

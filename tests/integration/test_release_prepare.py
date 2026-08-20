@@ -107,6 +107,18 @@ def test_main_skips_manifest_update(
     assert staged_minimal.read_bytes() == before
 
 
+def test_main_skip_dies_for_undeclared_version(
+    monkeypatch: pytest.MonkeyPatch, staged_minimal: Path
+) -> None:
+    monkeypatch.setattr(release_prepare.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(
+        release_prepare.refresh, "main", lambda _: pytest.fail("refresh must not run")
+    )
+    # 99.0.0 is not in the minimal fixture — skip mode has nothing to republish.
+    with pytest.raises(SystemExit):
+        release_prepare.main(["--stellar-cli-version", "99.0.0", "--skip-manifest-update"])
+
+
 def test_main_dies_when_nothing_changes(
     monkeypatch: pytest.MonkeyPatch, staged_minimal: Path
 ) -> None:
