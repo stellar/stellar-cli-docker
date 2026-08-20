@@ -146,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     metadata_dir = Path(args.metadata_dir)
     if not metadata_dir.is_dir():
         common.die(f"{metadata_dir} is not a directory")
+    if args.iteration < 0:
+        common.die(f"--iteration must be non-negative, got {args.iteration}")
 
     try:
         rows = load_metadata(metadata_dir, args.stellar_cli_version)

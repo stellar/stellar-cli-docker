@@ -71,7 +71,7 @@ def download_release_assets(repo: str, tag: str, pattern: str, dest_dir: str) ->
     """Download a release's assets matching a glob into dest_dir.
 
     `--clobber` makes re-runs idempotent; `--pattern` limits the download
-    to just the files we need (e.g. `meta-*.json`).
+    to just the files we need (e.g. `prov-*.intoto.jsonl`).
     """
     runner.run(
         [
