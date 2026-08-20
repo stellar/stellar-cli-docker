@@ -145,9 +145,7 @@ def backfill_pair(
 
     Returns the number of arches that could not be reconstructed (0 on success).
     """
-    targets = {
-        arch: f"{registry}:{cli}-rust{label}-{arch}-{iteration}" for arch in ARCHES
-    }
+    targets = {arch: f"{registry}:{cli}-rust{label}-{arch}-{iteration}" for arch in ARCHES}
     pending: dict[str, str] = {}
     for arch, target in targets.items():
         if docker_inspect.exists(target):
