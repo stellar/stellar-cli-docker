@@ -41,7 +41,7 @@ def test_body_describes_mutable_publish_behavior() -> None:
 def test_skip_manifest_update_body_omits_builds_update_claim() -> None:
     _, body = _compose(release_tag="v26.0.0-1", skip_manifest_update=True)
     # No claim that builds.json was changed; it's an empty-commit re-trigger.
-    assert "auto-picked" not in body
+    assert "auto-pick" not in body
     assert "builds.json` is updated" not in body
     assert "unchanged" in body
 

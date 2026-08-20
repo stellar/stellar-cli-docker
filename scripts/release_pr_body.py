@@ -42,6 +42,19 @@ def compose(
             "digest at append time (`<label>@sha256:<digest>`)."
         )
 
+    if skip_manifest_update:
+        next_step = (
+            f"This branch carries an empty commit and intentionally leaves "
+            f"`builds.json` unchanged; push further changes to `release/{release_tag}` "
+            "only if this release needs them."
+        )
+    else:
+        next_step = (
+            f"Push any further changes to the `release/{release_tag}` branch that "
+            "are needed in this release (for example, adjusting the paired "
+            "`rust_versions` if the auto-pick isn't right for this iteration)."
+        )
+
     body = (
         "### What\n\n"
         f"{what}\n\n"
@@ -49,9 +62,7 @@ def compose(
         f"Triggered by @{actor} in {run_url}.\n\n"
         "### What is next\n\n"
         "See [RELEASE.md](./RELEASE.md) for the full release process.\n\n"
-        f"Push any further changes to the `release/{release_tag}` branch that "
-        "are needed in this release (for example, adjusting the paired "
-        "`rust_versions` if the auto-pick isn't right for this iteration).\n\n"
+        f"{next_step}\n\n"
         "When this PR is reviewed and merged, create a GitHub Release by going to:\n\n"
         f"https://github.com/{repo}/releases/new?tag={release_tag}"
         f"&title={release_tag.removeprefix('v')}&target={default_branch}\n\n"
