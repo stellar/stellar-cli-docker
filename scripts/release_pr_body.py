@@ -18,6 +18,7 @@ def compose(
     repo: str,
     run_url: str,
     default_branch: str,
+    skip_manifest_update: bool = False,
 ) -> tuple[str, str]:
     iteration = "-" in release_tag.removeprefix("v")
     if iteration:
@@ -27,12 +28,23 @@ def compose(
         title = f"Release stellar-cli {version}"
         kind = "new release"
 
+    if skip_manifest_update:
+        what = (
+            f"Stage a {kind} for stellar-cli {version}. `builds.json` is left "
+            "unchanged — this carries an empty commit to re-trigger the publish "
+            "flow for the pairs already declared for this cli."
+        )
+    else:
+        what = (
+            f"Stage a {kind} for stellar-cli {version}. `builds.json` is updated with "
+            "the rust base pins auto-picked from the current last two minor stable "
+            "releases on `rust-lang/rust`; each pin resolves the upstream base image "
+            "digest at append time (`<label>@sha256:<digest>`)."
+        )
+
     body = (
         "### What\n\n"
-        f"Stage a {kind} for stellar-cli {version}. `builds.json` is updated with "
-        "the rust base pins auto-picked from the current last two minor stable "
-        "releases on `rust-lang/rust`; each pin resolves the upstream base image "
-        "digest at append time (`<label>@sha256:<digest>`).\n\n"
+        f"{what}\n\n"
         "### Why\n\n"
         f"Triggered by @{actor} in {run_url}.\n\n"
         "### What is next\n\n"
@@ -69,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="body",
         help="Which composed field to print (default: body).",
     )
+    parser.add_argument(
+        "--skip-manifest-update",
+        action="store_true",
+        help="Describe an empty-commit re-trigger instead of a builds.json update.",
+    )
     return parser
 
 
@@ -81,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=args.repo,
         run_url=args.run_url,
         default_branch=args.default_branch,
+        skip_manifest_update=args.skip_manifest_update,
     )
     sys.stdout.write(title if args.field == "title" else body)
     return 0

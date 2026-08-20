@@ -84,6 +84,29 @@ def test_main_delegates_to_refresh_and_emits_tag(
     assert "27.0.0" in versions
 
 
+def test_main_skips_manifest_update(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    staged_minimal: Path,
+) -> None:
+    monkeypatch.setattr(release_prepare.common, "preflight_checks", lambda _: None)
+    monkeypatch.setattr(release_prepare.gh_cli, "list_release_tags", lambda _: ["v26.0.0"])
+    monkeypatch.setattr(
+        release_prepare.refresh, "main", lambda _: pytest.fail("refresh must not run")
+    )
+    monkeypatch.setattr(
+        release_prepare.validate_json, "main", lambda _: pytest.fail("validate must not run")
+    )
+
+    before = staged_minimal.read_bytes()
+    rc = release_prepare.main(["--stellar-cli-version", "26.0.0", "--skip-manifest-update"])
+    assert rc == 0
+    # A refresh iteration tag is still picked and emitted.
+    assert capsys.readouterr().out == "v26.0.0-1\n"
+    # builds.json is left byte-identical.
+    assert staged_minimal.read_bytes() == before
+
+
 def test_main_dies_when_nothing_changes(
     monkeypatch: pytest.MonkeyPatch, staged_minimal: Path
 ) -> None:

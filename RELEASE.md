@@ -63,7 +63,11 @@ Docker image tags (`:<cli>-rust<key>[-<arch>]`) are unaffected by the `-N` suffi
 
 Same workflow for both. PR review is the gate; a GitHub Release is the publish trigger. No manual tag pushes.
 
-1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0` for a brand-new release, or `26.0.0` to refresh an already-published cli with the current latest rust pairings). The workflow:
+1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0` for a brand-new release, or `26.0.0` to refresh an already-published cli with the current latest rust pairings).
+
+   Leave **Update manifest** checked for the normal flow. Uncheck it to re-trigger the publish flow for a cli's already-declared pairs **without** changing `builds.json` — the workflow then skips the rust auto-pick and carries the `release/<tag>` branch with an empty commit instead. Useful when you want to rebuild/republish existing pairs (e.g. after a base-image change already reflected in the pins) without adding new rust bases.
+
+   The workflow:
 
    - Detects whether this is a **new release** (cli not yet declared) or a **refresh** (cli exists in `builds.json`).
    - Picks the last two minor stable rust versions, at their latest patch each, from Docker Hub's `library/rust` tag list, filtered by the `slim-<default_distro>` suffix.

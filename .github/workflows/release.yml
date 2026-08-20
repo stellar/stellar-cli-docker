@@ -8,6 +8,11 @@ on:
         description: stellar-cli version to release (e.g. 26.1.0 for a new release, or an existing version like 26.0.0 to refresh its rust pairings)
         required: true
         type: string
+      update_manifest:
+        description: update builds.json with fresh rust pairings; uncheck to re-trigger the publish flow for existing pairs via an empty commit
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -37,10 +42,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           STELLAR_CLI_VERSION: ${{ inputs.stellar_cli_version }}
           REPO: ${{ github.repository }}
+          UPDATE_MANIFEST: ${{ inputs.update_manifest }}
         run: |
+          manifest_flag=""
+          if [ "$UPDATE_MANIFEST" != "true" ]; then
+            manifest_flag="--skip-manifest-update"
+          fi
           tag="$(./scripts/release_prepare.py \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
-            --repo "$REPO")"
+            --repo "$REPO" \
+            $manifest_flag)"
           echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: create release branch
@@ -52,7 +63,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
           REPO: ${{ github.repository }}
-        run: ./scripts/release_push_branch.py --release-tag "$RELEASE_TAG" --repo "$REPO"
+          UPDATE_MANIFEST: ${{ inputs.update_manifest }}
+        run: |
+          manifest_flag=""
+          if [ "$UPDATE_MANIFEST" != "true" ]; then
+            manifest_flag="--skip-manifest-update"
+          fi
+          ./scripts/release_push_branch.py \
+            --release-tag "$RELEASE_TAG" \
+            --repo "$REPO" \
+            $manifest_flag
 
       - name: open pull request
         env:
@@ -63,7 +83,12 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          UPDATE_MANIFEST: ${{ inputs.update_manifest }}
         run: |
+          manifest_flag=""
+          if [ "$UPDATE_MANIFEST" != "true" ]; then
+            manifest_flag="--skip-manifest-update"
+          fi
           title="$(./scripts/release_pr_body.py \
             --stellar-cli-version "$VERSION" \
             --release-tag "$RELEASE_TAG" \
@@ -71,6 +96,7 @@ jobs:
             --repo "$REPO" \
             --run-url "$RUN_URL" \
             --default-branch "$DEFAULT_BRANCH" \
+            $manifest_flag \
             --field title)"
           body="$(./scripts/release_pr_body.py \
             --stellar-cli-version "$VERSION" \
@@ -79,6 +105,7 @@ jobs:
             --repo "$REPO" \
             --run-url "$RUN_URL" \
             --default-branch "$DEFAULT_BRANCH" \
+            $manifest_flag \
             --field body)"
           gh pr create \
             --base "$DEFAULT_BRANCH" \
