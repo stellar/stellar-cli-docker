@@ -18,28 +18,57 @@ def compose(
     repo: str,
     run_url: str,
     default_branch: str,
+    skip_manifest_update: bool = False,
 ) -> tuple[str, str]:
     iteration = "-" in release_tag.removeprefix("v")
-    if iteration:
+    if skip_manifest_update:
+        # Skip mode always re-publishes already-declared pairs, never adds new
+        # ones — so it reads as a refresh even when the tag has no -N suffix.
+        suffix = f" ({release_tag.removeprefix('v')})" if iteration else ""
+        title = f"Refresh stellar-cli {version}{suffix}"
+        kind = "refresh"
+    elif iteration:
         title = f"Refresh stellar-cli {version} ({release_tag.removeprefix('v')})"
         kind = "refresh"
     else:
         title = f"Release stellar-cli {version}"
         kind = "new release"
 
+    if skip_manifest_update:
+        what = (
+            f"Stage a {kind} for stellar-cli {version}. `builds.json` is left "
+            "unchanged — this carries an empty commit to re-trigger the publish "
+            "flow for the pairs already declared for this cli."
+        )
+    else:
+        what = (
+            f"Stage a {kind} for stellar-cli {version}. `builds.json` is updated with "
+            "the rust base pins auto-picked from the current last two minor stable "
+            "releases on `rust-lang/rust`; each pin resolves the upstream base image "
+            "digest at append time (`<label>@sha256:<digest>`)."
+        )
+
+    if skip_manifest_update:
+        next_step = (
+            f"This branch carries an empty commit and intentionally leaves "
+            f"`builds.json` unchanged; push further changes to `release/{release_tag}` "
+            "only if this release needs them."
+        )
+    else:
+        next_step = (
+            f"Push any further changes to the `release/{release_tag}` branch that "
+            "are needed in this release (for example, adjusting the paired "
+            "`rust_versions` if the auto-pick isn't right for this iteration)."
+        )
+
     body = (
         "### What\n\n"
-        f"Stage a {kind} for stellar-cli {version}. `builds.json` is updated with "
-        "the rust base pins auto-picked from the current last two minor stable "
-        "releases on `rust-lang/rust`; each pin resolves the upstream base image "
-        "digest at append time (`<label>@sha256:<digest>`).\n\n"
+        f"{what}\n\n"
         "### Why\n\n"
         f"Triggered by @{actor} in {run_url}.\n\n"
         "### What is next\n\n"
         "See [RELEASE.md](./RELEASE.md) for the full release process.\n\n"
-        f"Push any further changes to the `release/{release_tag}` branch that "
-        "are needed in this release (for example, adjusting the paired "
-        "`rust_versions` if the auto-pick isn't right for this iteration).\n\n"
+        f"{next_step}\n\n"
         "When this PR is reviewed and merged, create a GitHub Release by going to:\n\n"
         f"https://github.com/{repo}/releases/new?tag={release_tag}"
         f"&title={release_tag.removeprefix('v')}&target={default_branch}\n\n"
@@ -69,6 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="body",
         help="Which composed field to print (default: body).",
     )
+    parser.add_argument(
+        "--skip-manifest-update",
+        action="store_true",
+        help="Describe an empty-commit re-trigger instead of a builds.json update.",
+    )
     return parser
 
 
@@ -81,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=args.repo,
         run_url=args.run_url,
         default_branch=args.default_branch,
+        skip_manifest_update=args.skip_manifest_update,
     )
     sys.stdout.write(title if args.field == "title" else body)
     return 0

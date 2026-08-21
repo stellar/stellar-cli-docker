@@ -44,38 +44,57 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SLUG",
         help="GitHub repo for release-tag lookups (default: stellar/stellar-cli-docker)",
     )
+    parser.add_argument(
+        "--skip-manifest-update",
+        action="store_true",
+        help="Do not touch builds.json; just pick a release tag for an empty-commit refresh.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    common.preflight_checks(["gh", "git", "buildx"])
-
     cli = args.stellar_cli_version
-    before = builds.DEFAULT_PATH.read_bytes()
 
-    common.log(f"refreshing builds.json for stellar-cli {cli} ...")
-    refresh_argv = ["--stellar-cli-version", cli]
-    if args.rust_versions:
-        refresh_argv += ["--rust-versions", args.rust_versions]
-    if refresh.main(refresh_argv) != 0:
-        common.die("refresh failed; see above")
+    if args.skip_manifest_update:
+        # No builds.json mutation → no docker/refresh work, just a tag for the
+        # empty-commit refresh the push step will create.
+        common.preflight_checks(["gh", "git"])
+        if builds.find_cli(builds.load(), cli) is None:
+            common.die(
+                f"stellar-cli {cli} is not declared in builds.json — nothing to "
+                f"republish. Run without --skip-manifest-update to stage it first."
+            )
+        common.log("skipping builds.json update (--skip-manifest-update)")
+    else:
+        common.preflight_checks(["gh", "git", "buildx"])
+        before = builds.DEFAULT_PATH.read_bytes()
 
-    common.log("validating builds.json ...")
-    if validate_json.main([]) != 0:
-        common.die("validation failed; see above")
+        common.log(f"refreshing builds.json for stellar-cli {cli} ...")
+        refresh_argv = ["--stellar-cli-version", cli]
+        if args.rust_versions:
+            refresh_argv += ["--rust-versions", args.rust_versions]
+        if refresh.main(refresh_argv) != 0:
+            common.die("refresh failed; see above")
 
-    after = builds.DEFAULT_PATH.read_bytes()
-    if before == after:
-        common.die(
-            f"no changes to builds.json — nothing to release. The auto-picked rust "
-            f"versions and cli ref already match what's declared for stellar-cli {cli}."
-        )
+        common.log("validating builds.json ...")
+        if validate_json.main([]) != 0:
+            common.die("validation failed; see above")
+
+        after = builds.DEFAULT_PATH.read_bytes()
+        if before == after:
+            common.die(
+                f"no changes to builds.json — nothing to release. The auto-picked rust "
+                f"versions and cli ref already match what's declared for stellar-cli {cli}."
+            )
 
     release_tag = pick_release_tag(cli, args.repo)
     common.log(f"release tag: {release_tag}")
     common.log("")
-    common.log(f"release-prepare: builds.json staged for stellar-cli {cli}")
+    if args.skip_manifest_update:
+        common.log(f"release-prepare: builds.json left unchanged for stellar-cli {cli}")
+    else:
+        common.log(f"release-prepare: builds.json staged for stellar-cli {cli}")
 
     print(release_tag)
     return 0

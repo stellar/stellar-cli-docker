@@ -63,7 +63,11 @@ Docker image tags (`:<cli>-rust<key>[-<arch>]`) are unaffected by the `-N` suffi
 
 Same workflow for both. PR review is the gate; a GitHub Release is the publish trigger. No manual tag pushes.
 
-1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0` for a brand-new release, or `26.0.0` to refresh an already-published cli with the current latest rust pairings). The workflow:
+1. **Trigger the `release` workflow** from the Actions UI with the stellar-cli version (e.g. `26.1.0` for a brand-new release, or `26.0.0` to refresh an already-published cli with the current latest rust pairings).
+
+   Leave **Update manifest** checked for the normal flow. Uncheck it to re-trigger the publish flow for a cli's already-declared pairs **without** changing `builds.json` — the workflow then skips the rust auto-pick and carries the `release/<tag>` branch with an empty commit instead. Useful when you want to rebuild/republish existing pairs (e.g. after a base-image change already reflected in the pins) without adding new rust bases. Skip mode only works for a cli already declared in `builds.json`; an undeclared version is rejected up front (there would be nothing to publish).
+
+   With **Update manifest** checked, the workflow:
 
    - Detects whether this is a **new release** (cli not yet declared) or a **refresh** (cli exists in `builds.json`).
    - Picks the last two minor stable rust versions, at their latest patch each, from Docker Hub's `library/rust` tag list, filtered by the `slim-<default_distro>` suffix.
@@ -72,9 +76,11 @@ Same workflow for both. PR review is the gate; a GitHub Release is the publish t
    - Picks the next available release tag — `v<version>` for a fresh release, `v<version>-<N>` for a refresh.
    - Pushes a `release/<tag>` branch and opens a PR with a body modeled on stellar-cli's release PRs, including a pre-filled link to create the GitHub Release on merge.
 
-2. **Review and adjust** the PR. The auto-pick of rust versions is a sensible default but not always right; if you want different `rust_versions` for this iteration, push commits to the release branch before merging. The PR-time `lint` and `build` workflows re-do validation and smoke-build on every push.
+   With **Update manifest** unchecked, the workflow skips the auto-pick, `builds.json` update, and validation; it still picks the next release tag and opens the PR, but the `release/<tag>` branch holds an empty commit instead of a `builds.json` change.
 
-3. **Merge the PR** once approved. `builds.json` now declares the new release state.
+2. **Review and adjust** the PR. When the manifest was updated, the auto-pick of rust versions is a sensible default but not always right; if you want different `rust_versions` for this iteration, push commits to the release branch before merging. (In skip mode there's nothing to adjust — `builds.json` is unchanged.) The PR-time `lint` and `build` workflows re-do validation and smoke-build on every push.
+
+3. **Merge the PR** once approved. When the manifest was updated, `builds.json` now declares the new release state; in skip mode it is unchanged and the merge simply carries the empty commit that triggers publishing.
 
 4. **Publish the release** by following the `Create release` link in the PR body. That opens `Releases → New release` with the tag pre-filled; add notes (or use `Generate release notes`), then **Publish release**.
 

@@ -3,7 +3,7 @@ import pytest
 import release_pr_body
 
 
-def _compose(version="26.0.0", release_tag="v26.0.0"):
+def _compose(version="26.0.0", release_tag="v26.0.0", skip_manifest_update=False):
     return release_pr_body.compose(
         version=version,
         release_tag=release_tag,
@@ -11,6 +11,7 @@ def _compose(version="26.0.0", release_tag="v26.0.0"):
         repo="stellar/stellar-cli-docker",
         run_url="https://github.com/stellar/stellar-cli-docker/actions/runs/123",
         default_branch="main",
+        skip_manifest_update=skip_manifest_update,
     )
 
 
@@ -35,6 +36,22 @@ def test_body_describes_mutable_publish_behavior() -> None:
     assert "skipped" not in body
     assert "immutable" not in body
     assert "mutable" in body
+
+
+def test_skip_manifest_update_never_reads_as_new_release() -> None:
+    # A declared cli without a prior GitHub Release picks a suffix-less tag, but
+    # skip mode re-publishes existing pairs — it must not call itself a new release.
+    title, body = _compose(version="27.2.0", release_tag="v27.2.0", skip_manifest_update=True)
+    assert title == "Refresh stellar-cli 27.2.0"
+    assert "new release" not in body
+
+
+def test_skip_manifest_update_body_omits_builds_update_claim() -> None:
+    _, body = _compose(release_tag="v26.0.0-1", skip_manifest_update=True)
+    # No claim that builds.json was changed; it's an empty-commit re-trigger.
+    assert "auto-pick" not in body
+    assert "builds.json` is updated" not in body
+    assert "unchanged" in body
 
 
 def test_body_carries_release_url_with_correct_target() -> None:

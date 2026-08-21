@@ -24,6 +24,19 @@ def test_fresh_push_when_remote_branch_missing(monkeypatch: pytest.MonkeyPatch) 
     assert last == ["git", "push", "origin", "release/v26.0.0"]
 
 
+def test_skip_manifest_update_commits_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = MagicMock(return_value=_completed())
+    monkeypatch.setattr(release_push_branch.runner, "run", captured)
+    monkeypatch.setattr(release_push_branch, "remote_branch_exists", lambda _: False)
+
+    assert release_push_branch.commit_and_push("v26.0.0", "foo/bar", skip_manifest_update=True) == 0
+    commands = [call[0][0] for call in captured.call_args_list]
+    # builds.json is never staged; the commit is empty to carry the branch.
+    assert ["git", "add", "builds.json"] not in commands
+    assert ["git", "commit", "--allow-empty", "-m", "Release v26.0.0."] in commands
+    assert commands[-1] == ["git", "push", "origin", "release/v26.0.0"]
+
+
 def test_orphan_branch_force_pushes(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = MagicMock(return_value=_completed())
     monkeypatch.setattr(release_push_branch.runner, "run", captured)

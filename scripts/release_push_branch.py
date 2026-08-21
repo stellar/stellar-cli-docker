@@ -20,10 +20,15 @@ def remote_branch_exists(branch: str) -> bool:
     return result.returncode == 0
 
 
-def commit_and_push(release_tag: str, repo: str) -> int:
+def commit_and_push(release_tag: str, repo: str, skip_manifest_update: bool = False) -> int:
     branch = f"release/{release_tag}"
-    runner.run(["git", "add", "builds.json"])
-    runner.run(["git", "commit", "-m", f"Release {release_tag}."])
+    if skip_manifest_update:
+        # builds.json is untouched; carry the branch with an empty commit so the
+        # PR (and the publish flow on merge) still fires for the declared pairs.
+        runner.run(["git", "commit", "--allow-empty", "-m", f"Release {release_tag}."])
+    else:
+        runner.run(["git", "add", "builds.json"])
+        runner.run(["git", "commit", "-m", f"Release {release_tag}."])
 
     force = False
     if remote_branch_exists(branch):
@@ -66,13 +71,18 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SLUG",
         help="GitHub repo for open-PR lookups (default: stellar/stellar-cli-docker)",
     )
+    parser.add_argument(
+        "--skip-manifest-update",
+        action="store_true",
+        help="Commit an empty change instead of staging builds.json.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     common.preflight_checks(["gh", "git"])
-    return commit_and_push(args.release_tag, args.repo)
+    return commit_and_push(args.release_tag, args.repo, args.skip_manifest_update)
 
 
 if __name__ == "__main__":
