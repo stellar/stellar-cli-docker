@@ -33,8 +33,9 @@ def repo_path(registry: str) -> str:
 def list_tags(repo_path: str) -> list[dict[str, Any]]:
     """Every tag object on the repo, following pagination to the last page.
 
-    Each item is the Hub API tag record; callers read `name` and the per-arch
-    `images[]` entries (`architecture`, `os`, `digest`).
+    Each item is the Hub API tag record; callers read `name`, the tag's own
+    top-level `digest`, and the per-arch `images[]` entries (`architecture`,
+    `os`) used to confirm which platform a per-arch tag carries.
     """
     tags: list[dict[str, Any]] = []
     url: str | None = f"{_HUB}/repositories/{repo_path}/tags?page_size={_PAGE_SIZE}"

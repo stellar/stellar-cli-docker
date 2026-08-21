@@ -5,8 +5,13 @@ import pytest
 import backfill_iteration_tags as backfill
 
 KEY = "1.90.0-slim-bookworm"
-AMD64_DIGEST = "sha256:" + "a" * 64
-ARM64_DIGEST = "sha256:" + "b" * 64
+# The `bldimg` anchor is the tag's top-level *index* digest, not the child
+# per-platform submanifest one level down — keep the two distinct so the tests
+# fail if the backfill ever pins the child digest again.
+AMD64_INDEX = "sha256:" + "1" * 64
+ARM64_INDEX = "sha256:" + "2" * 64
+AMD64_CHILD = "sha256:" + "a" * 64
+ARM64_CHILD = "sha256:" + "b" * 64
 
 
 def _image(arch: str, digest: str, os_: str = "linux") -> dict:
@@ -18,22 +23,36 @@ def _hub_tags(cli: str = "25.1.0") -> list[dict]:
 
     Includes the noise the real API carries — the multi-arch list tag, the
     `unknown/unknown` attestation manifests, an already-minted immutable
-    snapshot, and an unrelated cli — so the parser is exercised against it.
+    snapshot, and an unrelated cli — so the parser is exercised against it. Each
+    per-arch tag is an attestation-bearing *index*: its top-level `digest` is the
+    index digest (the `bldimg` anchor) while `images[].digest` is the child
+    submanifest, so the two must not be conflated.
     """
     unknown = _image("unknown", "sha256:" + "f" * 64, os_="unknown")
     return [
         {
             "name": f"{cli}-rust{KEY}",  # multi-arch list tag: no arch suffix
-            "images": [_image("amd64", AMD64_DIGEST), unknown, _image("arm64", ARM64_DIGEST)],
+            "digest": "sha256:" + "d" * 64,
+            "images": [_image("amd64", AMD64_CHILD), unknown, _image("arm64", ARM64_CHILD)],
         },
-        {"name": f"{cli}-rust{KEY}-amd64", "images": [_image("amd64", AMD64_DIGEST), unknown]},
-        {"name": f"{cli}-rust{KEY}-arm64", "images": [_image("arm64", ARM64_DIGEST), unknown]},
+        {
+            "name": f"{cli}-rust{KEY}-amd64",
+            "digest": AMD64_INDEX,
+            "images": [_image("amd64", AMD64_CHILD), unknown],
+        },
+        {
+            "name": f"{cli}-rust{KEY}-arm64",
+            "digest": ARM64_INDEX,
+            "images": [_image("arm64", ARM64_CHILD), unknown],
+        },
         {  # already-minted immutable snapshot: ends in a digit, must be ignored
             "name": f"{cli}-rust{KEY}-amd64-0",
-            "images": [_image("amd64", AMD64_DIGEST), unknown],
+            "digest": AMD64_INDEX,
+            "images": [_image("amd64", AMD64_CHILD), unknown],
         },
         {  # unrelated cli
             "name": f"26.0.0-rust{KEY}-amd64",
+            "digest": "sha256:" + "e" * 64,
             "images": [_image("amd64", "sha256:" + "c" * 64), unknown],
         },
     ]
@@ -70,11 +89,35 @@ def test_latest_iteration_is_the_highest_index() -> None:
 def test_current_pairs_reads_per_arch_tags_only() -> None:
     pairs = backfill.current_pairs(_hub_tags(), "25.1.0")
     # Only the two per-arch tags of 25.1.0 — not the list tag, the immutable
-    # snapshot, the attestation manifests, or the unrelated cli.
+    # snapshot, the attestation manifests, or the unrelated cli. Each pins the
+    # tag's top-level index digest, never the child per-platform submanifest.
     assert pairs == {
-        (KEY, "amd64"): AMD64_DIGEST,
-        (KEY, "arm64"): ARM64_DIGEST,
+        (KEY, "amd64"): AMD64_INDEX,
+        (KEY, "arm64"): ARM64_INDEX,
     }
+
+
+def test_current_pairs_uses_index_digest_not_child_submanifest() -> None:
+    # Guards the issue #38 anchor: the recovered digest must be the index digest
+    # (the tag's own `digest`), matching docker_inspect.index_digest and what the
+    # publish workflow records as `bldimg` — not the child `images[].digest`.
+    pairs = backfill.current_pairs(_hub_tags(), "25.1.0")
+    assert AMD64_CHILD not in pairs.values()
+    assert ARM64_CHILD not in pairs.values()
+
+
+def test_current_pairs_handles_plain_manifest_per_arch_tag() -> None:
+    # A non-attestation per-arch tag is a plain single manifest: its top-level
+    # `digest` equals its sole `images[].digest`. Both shapes resolve correctly.
+    plain = "sha256:" + "9" * 64
+    tags = [
+        {
+            "name": f"25.1.0-rust{KEY}-amd64",
+            "digest": plain,
+            "images": [_image("amd64", plain)],
+        }
+    ]
+    assert backfill.current_pairs(tags, "25.1.0") == {(KEY, "amd64"): plain}
 
 
 def _wire_main(monkeypatch: pytest.MonkeyPatch, *, existing: set[str], releases=None) -> MagicMock:
@@ -98,9 +141,10 @@ def test_main_creates_missing_per_arch_tags(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert rc == 0
     calls = {call.args[0]: call.args[1] for call in created.call_args_list}
-    # Both arches, at iteration 0, each pinning the digest its live tag exposes.
-    assert calls[_arch_tag("amd64")] == f"reg/img@{AMD64_DIGEST}"
-    assert calls[_arch_tag("arm64")] == f"reg/img@{ARM64_DIGEST}"
+    # Both arches, at iteration 0, each pinning the index digest its live tag
+    # exposes (the `bldimg` anchor), never the child submanifest.
+    assert calls[_arch_tag("amd64")] == f"reg/img@{AMD64_INDEX}"
+    assert calls[_arch_tag("arm64")] == f"reg/img@{ARM64_INDEX}"
 
 
 def test_main_uses_highest_release_iteration(monkeypatch: pytest.MonkeyPatch) -> None:

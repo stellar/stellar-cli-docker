@@ -87,6 +87,9 @@ def create_snapshot(snapshot: str, arch_ref: str, *, dry_run: bool) -> None:
     If it already exists we leave it alone when it still pins the same digest,
     and fail loudly if it points somewhere else (a real immutability violation)
     rather than silently clobbering an on-chain `bldimg` anchor.
+
+    Under --dry-run the exists()/index_digest() lookups are skipped, so a preview
+    always reports "would create" even for a snapshot that already exists.
     """
     if not dry_run and docker_inspect.exists(snapshot):
         existing = docker_inspect.index_digest(snapshot)
@@ -113,8 +116,9 @@ def main(argv: list[str] | None = None) -> int:
         common.die(f"no stellar_cli_versions entry for {args.stellar_cli_version}")
 
     # Only the newest pin per label is published (see resolve_matrix); dedup so a
-    # relabelled base doesn't re-create the same tags twice.
-    for rust_key, _ in {builds.label_of(pin): pin for pin in entry["rust_versions"]}.items():
+    # relabelled base doesn't re-create the same tags twice. Only the label matters
+    # here, and fromkeys keeps first-seen order.
+    for rust_key in dict.fromkeys(builds.label_of(pin) for pin in entry["rust_versions"]):
         list_ref, amd64_ref, arm64_ref = manifest_for_pair(
             registry=args.registry,
             cli=args.stellar_cli_version,

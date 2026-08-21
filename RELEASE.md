@@ -153,10 +153,10 @@ Releases published before the `:<cli>-rust<key>-<arch>-<N>` snapshots existed le
 
 Tag state is used rather than provenance for two reasons. The OCI/Docker Hub API has no way to list *untagged* manifests, so a digest a live tag still points at is the only kind that can be protected (anything already orphaned is unrecoverable — but nothing at issue is orphaned yet, only at risk). And it covers releases whose provenance was never published: `v25.1.0` and `v25.2.0` (the [issue #38](https://github.com/stellar/stellar-cli-docker/issues/38) cases) both had publish runs that failed *after* pushing the per-arch images but before the provenance step, so no `prov-*.intoto.jsonl` exists — yet the images remain tagged and their digests are recoverable here. Only the newest iteration's content is reachable, since a superseded iteration's per-arch tag was already overwritten; the script labels what it finds with that newest `N`.
 
-Because it's manual and needs the Docker Hub credentials, it runs via the **backfill iteration tags** workflow (`workflow_dispatch` in `.github/workflows/backfill.yml`) — trigger it from the Actions UI with the target cli version (and `dry_run` to preview). It can also be run locally:
+Because it's manual and needs the Docker Hub credentials, it runs via the **backfill iteration tags** workflow (`workflow_dispatch` in `.github/workflows/backfill.yml`) — trigger it from the Actions UI with the target cli version (and `dry_run` to preview). It can also be run locally. Reading the repo's live Docker Hub tags is an anonymous HTTP call (no login), so the prerequisites are `gh` auth (to list the `v<cli>[-N]` release tags via `--repo`) and `docker buildx` (to check which snapshot tags already exist and, on a real run, to create them):
 
 ```sh
-# Preview what would be created (needs gh auth + a running Docker daemon):
+# Preview what would be created (dry-run still queries existing tags via buildx):
 ./scripts/backfill_iteration_tags.py --stellar-cli-version 25.1.0 --dry-run
 
 # Create the missing tags:

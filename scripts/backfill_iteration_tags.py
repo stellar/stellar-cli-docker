@@ -30,7 +30,9 @@ For the given cli:
      per-arch tags reflect that newest iteration's content, which is all the
      registry still exposes (superseded iterations were orphaned when overwritten
      and cannot be recovered).
-  2. Read the per-arch digest each current `:<cli>-rust<key>-<arch>` tag exposes.
+  2. Read the index digest each current `:<cli>-rust<key>-<arch>` tag exposes
+     (the tag's own top-level digest — the same `bldimg` anchor the publish
+     workflow records, not the child per-platform submanifest).
   3. `docker buildx imagetools create` an immutable `:<cli>-rust<key>-<arch>-<N>`
      tag for each digest, re-referencing it so it can no longer become untagged.
 
@@ -91,17 +93,31 @@ def _per_arch_tag_re(cli: str) -> re.Pattern[str]:
 
 
 def _arch_digest(tag_obj: dict, arch: str) -> str | None:
-    """The linux/<arch> image digest a Hub tag record exposes, if any.
+    """The index digest a per-arch Hub tag exposes — the `bldimg` anchor.
 
-    A per-arch tag also carries an `unknown/unknown` attestation manifest; only
-    the real platform image is a `bldimg` anchor, so match on architecture + os.
+    A per-arch tag `:<cli>-rust<key>-<arch>` is a single-platform build, but with
+    attestations enabled buildx pushes it as an *index* (the real linux/<arch>
+    image plus an `unknown/unknown` attestation manifest). The digest the rest of
+    the system records as `bldimg` — `write_metadata` / `release_body` / the
+    natively-minted snapshots — is that index's top-level digest
+    (`docker_inspect.index_digest`, i.e. `{{.Manifest.Digest}}`), which the Hub
+    tag record exposes as the tag's own `digest` field. The per-platform
+    `images[].digest` is the child submanifest one level down, which is NOT what
+    contracts pin, so pinning it would both diverge from natively-published tags
+    and fail to keep the parent index reachable. Confirm the tag really carries
+    the expected linux/<arch> image (and isn't attestation-only) before trusting
+    it, then return the tag's own digest.
+
+    This also handles a plain (non-attestation) per-arch manifest: there the
+    top-level `digest` and the sole `images[].digest` coincide.
     """
-    for image in tag_obj.get("images", []):
-        if image.get("architecture") == arch and image.get("os") == "linux":
-            digest = image.get("digest")
-            if digest:
-                return digest
-    return None
+    has_arch = any(
+        image.get("architecture") == arch and image.get("os") == "linux"
+        for image in tag_obj.get("images", [])
+    )
+    if not has_arch:
+        return None
+    return tag_obj.get("digest") or None
 
 
 def current_pairs(tags: list[dict], cli: str) -> dict[tuple[str, str], str]:
