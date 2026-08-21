@@ -21,7 +21,13 @@ def compose(
     skip_manifest_update: bool = False,
 ) -> tuple[str, str]:
     iteration = "-" in release_tag.removeprefix("v")
-    if iteration:
+    if skip_manifest_update:
+        # Skip mode always re-publishes already-declared pairs, never adds new
+        # ones — so it reads as a refresh even when the tag has no -N suffix.
+        suffix = f" ({release_tag.removeprefix('v')})" if iteration else ""
+        title = f"Refresh stellar-cli {version}{suffix}"
+        kind = "refresh"
+    elif iteration:
         title = f"Refresh stellar-cli {version} ({release_tag.removeprefix('v')})"
         kind = "refresh"
     else:

@@ -38,6 +38,14 @@ def test_body_describes_mutable_publish_behavior() -> None:
     assert "mutable" in body
 
 
+def test_skip_manifest_update_never_reads_as_new_release() -> None:
+    # A declared cli without a prior GitHub Release picks a suffix-less tag, but
+    # skip mode re-publishes existing pairs — it must not call itself a new release.
+    title, body = _compose(version="27.2.0", release_tag="v27.2.0", skip_manifest_update=True)
+    assert title == "Refresh stellar-cli 27.2.0"
+    assert "new release" not in body
+
+
 def test_skip_manifest_update_body_omits_builds_update_claim() -> None:
     _, body = _compose(release_tag="v26.0.0-1", skip_manifest_update=True)
     # No claim that builds.json was changed; it's an empty-commit re-trigger.
