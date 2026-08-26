@@ -26,17 +26,23 @@ state, not from release provenance. Two reasons:
      digests are recoverable here.
 
 For the given cli:
-  1. Resolve iteration `N` — the highest `v<cli>[-N]` release tag. The mutable
-     per-arch tags reflect that newest iteration's content, which is all the
-     registry still exposes (superseded iterations were orphaned when overwritten
-     and cannot be recovered).
+  1. Resolve iteration `N` — the highest `v<cli>[-N]` release tag, or an explicit
+     `--iteration`. The mutable per-arch tags reflect that newest iteration's
+     content, which is all the registry still exposes (superseded iterations were
+     orphaned when overwritten and cannot be recovered). Auto-resolving assumes
+     the newest release's publish reached the build+push step; if it failed
+     *before* pushing images the live tags still hold an earlier iteration's
+     content, so pass `--iteration <N>` to label it correctly instead of
+     mislabeling it as the newest N.
   2. Read the index digest each current `:<cli>-rust<key>-<arch>` tag exposes
      (the tag's own top-level digest — the same `bldimg` anchor the publish
      workflow records, not the child per-platform submanifest).
   3. `docker buildx imagetools create` an immutable `:<cli>-rust<key>-<arch>-<N>`
      tag for each digest, re-referencing it so it can no longer become untagged.
 
-Per-arch tags that already exist are skipped, so the script is safe to re-run.
+A snapshot tag that already pins the same digest is skipped, so the script is
+safe to re-run; one that exists pinning a *different* digest fails loudly rather
+than being silently clobbered — that would be an immutability violation.
 """
 
 import argparse
@@ -141,6 +147,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--registry", default="docker.io/stellar/stellar-cli", metavar="REF")
     parser.add_argument("--repo", default="stellar/stellar-cli-docker", metavar="SLUG")
     parser.add_argument(
+        "--iteration",
+        type=int,
+        metavar="N",
+        help=(
+            "Iteration index to label the recovered snapshots with. Defaults to "
+            "the highest v<cli>[-N] release tag. Override when the newest "
+            "release's publish failed before pushing images, so the live per-arch "
+            "tags still hold an earlier iteration's content."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would be created without touching the registry.",
@@ -148,16 +165,40 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def resolve_iteration(args, cli: str) -> int:
+    """The iteration index to label recovered snapshots with.
+
+    An explicit `--iteration` wins. Otherwise it's the newest `v<cli>[-N]`
+    release, which assumes that release's publish reached build+push so the live
+    per-arch tags hold its content — a loud warning flags the assumption so an
+    operator recovering from a publish that failed before pushing knows to pass
+    `--iteration <N>` instead of mislabeling an earlier iteration as the newest.
+    """
+    if args.iteration is not None:
+        return args.iteration
+    iteration = latest_iteration(gh_cli.list_release_tags(args.repo), cli)
+    if iteration is None:
+        common.die(f"no published releases found for stellar-cli {cli}")
+    common.log(
+        f"labeling recovered snapshots as iteration {iteration} (newest "
+        f"v{cli}[-N] release); this assumes that release's publish pushed its "
+        f"per-arch images. If it failed before the build/push step, the live "
+        f"tags still hold an earlier iteration — re-run with --iteration <N> to "
+        f"pin the correct one."
+    )
+    return iteration
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.iteration is not None and args.iteration < 0:
+        common.die(f"--iteration must be non-negative, got {args.iteration}")
     common.preflight_checks(["buildx", "gh"])
 
     cli = args.stellar_cli_version
     registry = args.registry
 
-    iteration = latest_iteration(gh_cli.list_release_tags(args.repo), cli)
-    if iteration is None:
-        common.die(f"no published releases found for stellar-cli {cli}")
+    iteration = resolve_iteration(args, cli)
 
     repo_path = dockerhub.repo_path(registry)
     pairs = current_pairs(dockerhub.list_tags(repo_path), cli)
@@ -168,11 +209,19 @@ def main(argv: list[str] | None = None) -> int:
     skipped = 0
     for (key, arch), digest in sorted(pairs.items()):
         target = f"{registry}:{cli}-rust{key}-{arch}-{iteration}"
-        if docker_inspect.exists(target):
-            common.log(f"skip {target}: already tagged")
-            skipped += 1
-            continue
         source = f"{registry}@{digest}"
+        if docker_inspect.exists(target):
+            existing = docker_inspect.index_digest(target)
+            if existing == digest:
+                common.log(f"skip {target}: already pins {digest}")
+                skipped += 1
+                continue
+            common.die(
+                f"{target} already exists pinning {existing}, but the live "
+                f"per-arch tag now exposes {digest}; refusing to re-point an "
+                f"immutable tag. If a newer iteration has since published, pass "
+                f"--iteration for the correct index."
+            )
         common.log(f"::group::backfill {target} -> {source}")
         if args.dry_run:
             common.log(f"docker buildx imagetools create --tag {target} {source}")
