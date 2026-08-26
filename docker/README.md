@@ -91,12 +91,20 @@ invocation, and compare the resulting WASM sha256.
 
 ## Image Tags
 
-- `latest` — most recent release.
-- `X.Y.Z` — specific release version (e.g. `26.1.0`).
+- `latest` — most recent release. **Moving** — re-points on every publish.
+- `X.Y.Z` — specific release version (e.g. `26.1.0`). **Moving** — re-points on
+  every publish (e.g. after a refreshed rust base).
 - `<X.Y.Z>-rust<rust image>` — multi-arch manifest list (e.g.
-  `26.1.0-rust1.95.0-slim-trixie`).
+  `26.1.0-rust1.95.0-slim-trixie`). **Mutable** — overwritten if that pair is
+  rebuilt in a later refresh.
 - `<X.Y.Z>-rust<rust image>-<arch>` — per-arch release (e.g.
-  `26.1.0-rust1.95.0-slim-trixie-arm64`).
+  `26.1.0-rust1.95.0-slim-trixie-arm64`). **Mutable** — overwritten on refresh.
+- `<X.Y.Z>-rust<rust image>-<arch>-N` — **immutable** per-arch snapshot at
+  refresh iteration `N` (`26.1.0-rust1.95.0-slim-trixie-arm64-0` is the first
+  publish, `…-1` the next, …). Unlike the mutable per-arch tag, it never
+  re-points, so every per-arch digest a past release exposed stays referenced
+  and is never garbage-collected — this is the tag that keeps SEP-58 `bldimg`
+  pins alive.
 
 ## Source
 

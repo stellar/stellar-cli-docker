@@ -23,6 +23,15 @@ def test_new_release_title_and_body() -> None:
     assert "release/v26.0.0" in body
 
 
+def test_first_release_iteration_zero_reads_as_new_release() -> None:
+    # Under the uniform -N scheme the first release is v<cli>-0, which must
+    # still read as a new release (not a refresh).
+    title, body = _compose(release_tag="v26.0.0-0")
+    assert title == "Release stellar-cli 26.0.0"
+    assert "new release" in body
+    assert "release/v26.0.0-0" in body
+
+
 def test_refresh_title_and_body() -> None:
     title, body = _compose(release_tag="v26.0.0-1")
     assert title == "Refresh stellar-cli 26.0.0 (26.0.0-1)"
@@ -32,9 +41,11 @@ def test_refresh_title_and_body() -> None:
 
 def test_body_describes_mutable_publish_behavior() -> None:
     _, body = _compose()
-    # Tags are mutable now — the body must not claim pairs are skipped/immutable.
+    # The (cli, rust base) pairs are mutable now — the body must not claim they
+    # are skipped or immutable. (The immutable `:<cli>-N` snapshot tag is a
+    # separate, legitimate mention and is asserted elsewhere.)
     assert "skipped" not in body
-    assert "immutable" not in body
+    assert "immutable pair" not in body
     assert "mutable" in body
 
 
@@ -52,6 +63,11 @@ def test_skip_manifest_update_body_omits_builds_update_claim() -> None:
     assert "auto-pick" not in body
     assert "builds.json` is updated" not in body
     assert "unchanged" in body
+
+
+def test_body_mentions_immutable_snapshot_tag() -> None:
+    _, body = _compose(version="26.0.0")
+    assert "immutable `:26.0.0-rust<key>-<arch>-N` per-arch snapshots" in body
 
 
 def test_body_carries_release_url_with_correct_target() -> None:

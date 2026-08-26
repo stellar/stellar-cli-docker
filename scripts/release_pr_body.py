@@ -1,13 +1,20 @@
 #!/usr/bin/env -S uv run python
 """Compose the title and body for the release-staging pull request.
 
-Differentiates a fresh release (e.g. v26.1.0) from a refresh iteration
-(e.g. v26.0.0-1) so the PR title and "What" section read naturally for
-either case.
+Differentiates a fresh release (iteration 0, e.g. v26.1.0-0) from a
+refresh iteration (e.g. v26.0.0-1) so the PR title and "What" section read
+naturally for either case. A grandfathered suffixless `v<cli>` tag from
+before the `-N` scheme is treated as iteration 0.
 """
 
 import argparse
 import sys
+
+
+def _iteration_of(release_tag: str) -> int:
+    label = release_tag.removeprefix("v")
+    _, sep, suffix = label.partition("-")
+    return int(suffix) if sep and suffix.isdigit() else 0
 
 
 def compose(
@@ -20,7 +27,7 @@ def compose(
     default_branch: str,
     skip_manifest_update: bool = False,
 ) -> tuple[str, str]:
-    iteration = "-" in release_tag.removeprefix("v")
+    iteration = _iteration_of(release_tag) > 0
     if skip_manifest_update:
         # Skip mode always re-publishes already-declared pairs, never adds new
         # ones — so it reads as a refresh even when the tag has no -N suffix.
@@ -77,7 +84,9 @@ def compose(
         "pair; tags are mutable, so an existing tag is overwritten in place\n"
         "- Generates SLSA build provenance + SPDX SBOM attestations on each "
         "built image (buildx-native + GitHub-native chains)\n"
-        f"- Re-points the `:{version}` and (if newest) `:latest` aliases\n"
+        f"- Re-points the `:{version}` and (if newest) `:latest` aliases, and "
+        f"mints the immutable `:{version}-rust<key>-<arch>-N` per-arch snapshots "
+        "for this iteration\n"
         "- Attaches the SBOM and provenance files to the new GitHub Release, "
         "with per-arch digests in the body"
     )

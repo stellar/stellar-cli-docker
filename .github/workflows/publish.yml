@@ -25,6 +25,7 @@ jobs:
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
       stellar_cli_version: ${{ steps.scope.outputs.version }}
+      iteration: ${{ steps.scope.outputs.iteration }}
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -39,13 +40,25 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          # Tag is "v<version>" or "v<version>-<N>" (refresh iterations).
-          # Strip leading "v" and trailing "-<N>" if present to derive
-          # the stellar-cli version.
+          # Tag is "v<version>" or "v<version>-<N>" (refresh iterations),
+          # auto-picked by the release workflow. Strip leading "v" and the
+          # trailing "-<N>" to derive the stellar-cli version; the refresh
+          # index N (0 when there's no suffix, i.e. the first release) names
+          # the immutable :<version>-<N> Docker tag published by the aliases
+          # job (see issue #38).
           no_prefix="${RELEASE_TAG#v}"
           version="${no_prefix%%-*}"
           test -n "$version" || { echo "::error::could not determine stellar_cli_version from release tag '$RELEASE_TAG'"; exit 1; }
+          if [ "$no_prefix" = "$version" ]; then
+            iteration=0
+          else
+            iteration="${no_prefix#*-}"
+          fi
+          case "$iteration" in
+            ""|*[!0-9]*) echo "::error::could not determine refresh iteration from release tag '$RELEASE_TAG'"; exit 1;;
+          esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "iteration=$iteration" >> "$GITHUB_OUTPUT"
       - name: resolve matrix
         id: resolve
         env:
@@ -177,6 +190,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       STELLAR_CLI_VERSION: ${{ needs.matrix.outputs.stellar_cli_version }}
+      ITERATION: ${{ needs.matrix.outputs.iteration }}
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -191,10 +205,11 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: create manifest list per (cli, rust base) pair
+      - name: create manifest lists and immutable per-arch snapshot tags
         run: |
           ./scripts/publish_manifests.py \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
+            --iteration "$ITERATION" \
             --registry "$REGISTRY"
 
   aliases:
@@ -262,6 +277,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       STELLAR_CLI_VERSION: ${{ needs.matrix.outputs.stellar_cli_version }}
+      ITERATION: ${{ needs.matrix.outputs.iteration }}
     steps:
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -279,6 +295,7 @@ jobs:
         run: |
           ./scripts/release_body.py \
             --stellar-cli-version "$STELLAR_CLI_VERSION" \
+            --iteration "$ITERATION" \
             --metadata-dir release-artifacts \
             --registry "$REGISTRY" \
             --repo "${{ github.repository }}" \

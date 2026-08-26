@@ -97,6 +97,7 @@ def test_emit_body_includes_expected_sections() -> None:
     rows = _pin_rows("1.94.0-slim-trixie", "1.94.0")
     body = release_body.emit_body(
         cli="26.0.0",
+        iteration=2,
         rows=rows,
         registry="docker.io/stellar/stellar-cli",
         repo="stellar/stellar-cli-docker",
@@ -106,6 +107,12 @@ def test_emit_body_includes_expected_sections() -> None:
     assert "# stellar-cli 26.0.0" in body
     assert "## Tags" in body
     assert "docker.io/stellar/stellar-cli:latest" in body
+    assert "Immutable per-release snapshot" in body
+    # Immutable per-arch snapshots, one per arch, carry the iteration suffix.
+    assert f"docker.io/stellar/stellar-cli:{list_tag}-amd64-2" in body
+    assert f"docker.io/stellar/stellar-cli:{list_tag}-arm64-2" in body
+    # The old default-pair-only :<cli>-<iteration> tag is gone.
+    assert "docker.io/stellar/stellar-cli:26.0.0-2`" not in body
     assert f"docker.io/stellar/stellar-cli:{list_tag}" in body
     assert f"{list_tag}-amd64" in body
     assert "## Per-architecture digests" in body
@@ -129,6 +136,7 @@ def test_emit_body_two_labels_render_as_two_sections() -> None:
     ]
     body = release_body.emit_body(
         cli="26.0.0",
+        iteration=0,
         rows=rows,
         registry="docker.io/stellar/stellar-cli",
         repo="stellar/stellar-cli-docker",
@@ -164,6 +172,8 @@ def test_main_writes_body_to_stdout(
         [
             "--stellar-cli-version",
             "26.0.0",
+            "--iteration",
+            "0",
             "--metadata-dir",
             str(tmp_path),
         ]

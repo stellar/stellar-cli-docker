@@ -1,7 +1,7 @@
 """Adapter around the `gh` CLI.
 
-Wraps the three gh subcommands the project uses (release list, pr list,
-attestation verify) so tests can patch one symbol per script.
+Wraps the gh subcommands the project uses (release list, matching-refs,
+pr list, attestation verify) so tests can patch one symbol per script.
 """
 
 import json
@@ -25,6 +25,32 @@ def list_release_tags(repo: str) -> list[str]:
         ]
     )
     return [item["tagName"] for item in json.loads(out)]
+
+
+def list_release_branch_tags(repo: str) -> list[str]:
+    """Release tags of the `release/<tag>` branches that exist on the repo.
+
+    A release branch is created at prepare time and persists across the
+    merge -> publish gap (merging the PR doesn't publish the GitHub
+    Release). Consulting it stops the tag picker from reusing an iteration
+    that's already been prepared but not yet published — which would let a
+    later publish overwrite the immutable `:<cli>-rust<key>-<arch>-<N>` tags.
+    """
+    out = runner.capture(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/git/matching-refs/heads/release/",
+            # matching-refs is paginated (30/page); --paginate walks every page
+            # so a large backlog of prepared release branches can't hide one and
+            # let its reserved iteration be reused.
+            "--paginate",
+            "--jq",
+            ".[].ref",
+        ]
+    )
+    prefix = "refs/heads/release/"
+    return [line[len(prefix) :] for line in out.splitlines() if line.startswith(prefix)]
 
 
 def open_pr_for_branch(repo: str, branch: str) -> int | None:

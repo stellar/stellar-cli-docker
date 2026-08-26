@@ -1,0 +1,54 @@
+---
+name: backfill iteration tags
+
+# One-shot, manually triggered reconstruction of the immutable per-arch
+# :<cli>-rust<key>-<arch>-<iteration> Docker tags for releases that predate
+# scripts/publish_manifests.py minting them (see issue #38). Runs on demand so
+# it can use the DOCKERHUB_* secrets needed to authenticate against Docker Hub.
+on:
+  workflow_dispatch:
+    inputs:
+      stellar_cli_version:
+        description: stellar-cli version to backfill (e.g. 25.2.0)
+        required: true
+        type: string
+      dry_run:
+        description: Print what would be created without touching the registry.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read  # gh CLI reads the repo's release tags to resolve the iteration
+
+env:
+  # Override per-repo via Settings → Variables → Actions (vars.REGISTRY).
+  REGISTRY: ${{ vars.REGISTRY || 'docker.io/stellar/stellar-cli' }}
+
+jobs:
+  backfill:
+    name: backfill :${{ inputs.stellar_cli_version }}-rust<key>-<arch>-<iteration> tags
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: set up buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+      - name: login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: backfill iteration tags
+        env:
+          GH_TOKEN: ${{ github.token }}  # gh CLI auth for release tag reads
+        run: |
+          ./scripts/backfill_iteration_tags.py \
+            --stellar-cli-version "${{ inputs.stellar_cli_version }}" \
+            --registry "$REGISTRY" \
+            --repo "${{ github.repository }}" \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
