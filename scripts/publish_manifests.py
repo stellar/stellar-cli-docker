@@ -23,8 +23,6 @@ import sys
 import tag_names
 from lib import builds, common, docker_inspect
 
-ARCHES = ("amd64", "arm64")
-
 
 def manifest_for_pair(*, registry: str, cli: str, rust_key: str) -> tuple[str, str, str]:
     list_tag = tag_names.compose_tag(stellar_cli_version=cli, rust_version=rust_key)
