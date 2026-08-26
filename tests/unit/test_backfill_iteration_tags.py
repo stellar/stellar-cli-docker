@@ -125,6 +125,14 @@ def _wire_main(monkeypatch: pytest.MonkeyPatch, *, existing: set[str], releases=
     monkeypatch.setattr(backfill.gh_cli, "list_release_tags", lambda repo: releases or ["v25.1.0"])
     monkeypatch.setattr(backfill.dockerhub, "list_tags", lambda repo_path: _hub_tags())
     monkeypatch.setattr(backfill.docker_inspect, "exists", lambda ref: ref in existing)
+
+    # An already-existing snapshot pins the same index digest its live per-arch
+    # tag exposes — the safe, re-runnable case, so `main` skips it. Tests that
+    # want a re-point conflict patch index_digest to return something else.
+    def _index_digest(ref: str) -> str:
+        return ARM64_INDEX if ref.rsplit("-", 1)[0].endswith("arm64") else AMD64_INDEX
+
+    monkeypatch.setattr(backfill.docker_inspect, "index_digest", _index_digest)
     created = MagicMock()
     monkeypatch.setattr(backfill.docker_inspect, "create_manifest", created)
     return created
@@ -160,6 +168,8 @@ def test_main_uses_highest_release_iteration(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_main_skips_already_tagged_arches(monkeypatch: pytest.MonkeyPatch) -> None:
+    # amd64's snapshot already exists pinning the same digest → skip; arm64's is
+    # created.
     created = _wire_main(monkeypatch, existing={_arch_tag("amd64")})
 
     rc = backfill.main(["--stellar-cli-version", "25.1.0", "--registry", "reg/img"])
@@ -168,6 +178,41 @@ def test_main_skips_already_tagged_arches(monkeypatch: pytest.MonkeyPatch) -> No
     tags = [call.args[0] for call in created.call_args_list]
     assert _arch_tag("amd64") not in tags
     assert _arch_tag("arm64") in tags
+
+
+def test_main_refuses_to_repoint_existing_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A snapshot that already exists pinning a *different* digest than the live
+    # per-arch tag is an immutability violation — fail loudly, don't clobber.
+    _wire_main(monkeypatch, existing={_arch_tag("amd64")})
+    monkeypatch.setattr(backfill.docker_inspect, "index_digest", lambda ref: "sha256:" + "0" * 64)
+
+    with pytest.raises(SystemExit):
+        backfill.main(["--stellar-cli-version", "25.1.0", "--registry", "reg/img"])
+
+
+def test_main_accepts_explicit_iteration(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Newest release is -1, but --iteration pins the live content to 0 (e.g. the
+    # -1 publish failed before pushing, so the live tags still hold -0's images).
+    created = _wire_main(monkeypatch, existing=set(), releases=["v25.1.0", "v25.1.0-1"])
+
+    rc = backfill.main(
+        ["--stellar-cli-version", "25.1.0", "--registry", "reg/img", "--iteration", "0"]
+    )
+
+    assert rc == 0
+    tags = [call.args[0] for call in created.call_args_list]
+    assert _arch_tag("amd64", 0) in tags
+    assert _arch_tag("arm64", 0) in tags
+    assert _arch_tag("amd64", 1) not in tags
+
+
+def test_main_rejects_negative_iteration(monkeypatch: pytest.MonkeyPatch) -> None:
+    _wire_main(monkeypatch, existing=set())
+
+    with pytest.raises(SystemExit):
+        backfill.main(
+            ["--stellar-cli-version", "25.1.0", "--registry", "reg/img", "--iteration", "-1"]
+        )
 
 
 def test_main_dry_run_creates_nothing(monkeypatch: pytest.MonkeyPatch) -> None:

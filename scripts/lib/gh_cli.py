@@ -30,11 +30,15 @@ def list_release_tags(repo: str) -> list[str]:
 def list_release_branch_tags(repo: str) -> list[str]:
     """Release tags of the `release/<tag>` branches that exist on the repo.
 
-    A release branch is created at prepare time and persists across the
-    merge -> publish gap (merging the PR doesn't publish the GitHub
-    Release). Consulting it stops the tag picker from reusing an iteration
-    that's already been prepared but not yet published — which would let a
-    later publish overwrite the immutable `:<cli>-rust<key>-<arch>-<N>` tags.
+    A release branch is created at prepare time and exists until its release PR
+    is merged. Consulting it stops the tag picker from reusing an iteration
+    that's been prepared (branch pushed, PR not yet merged) but not yet released
+    — which would let a later publish overwrite the immutable
+    `:<cli>-rust<key>-<arch>-<N>` tags.
+
+    The repo auto-deletes the branch on merge, so this covers the review window
+    (prepare -> merge); the normal flow publishes the GitHub Release right after
+    merge, so the brief merge -> publish gap isn't separately guarded here.
     """
     out = runner.capture(
         [

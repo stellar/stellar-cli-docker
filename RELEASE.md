@@ -56,7 +56,7 @@ Every release gets a unique tag. Tags are never reused or updated in place.
 - **First release of a stellar-cli version**: `v<version>-0` (e.g. `v26.0.0-0`).
 - **Refresh of the same stellar-cli version**: `v<version>-<N>` with `N` incrementing per refresh (e.g. `v26.0.0-1`, `v26.0.0-2`).
 
-The `-N` index lines up one-to-one with the immutable `:<cli>-rust<key>-<arch>-<N>` Docker tags, starting at `-0`. The `release` workflow picks the next available `-N` automatically from **both** existing releases and existing `release/*` branches — so an iteration that's been prepared (branch/PR merged) but whose GitHub Release hasn't been published yet never gets its number reused. Reuse would republish those immutable tags over different digests and defeat their immutability. Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0-0` page stays intact when `v26.0.0-1` is later published.
+The `-N` index lines up one-to-one with the immutable `:<cli>-rust<key>-<arch>-<N>` Docker tags, starting at `-0`. The `release` workflow picks the next available `-N` automatically from **both** existing releases and open `release/*` branches — so an iteration that's been prepared (branch/PR open) but not yet released never gets its number reused while it's in review. Reuse would republish those immutable tags over different digests and defeat their immutability. (The branch is auto-deleted on merge; publishing the GitHub Release follows merge immediately, so there's no practical window to reuse a merged-but-unpublished iteration's number.) Each release page is the snapshot of `builds.json` at that iteration; the historical `v26.0.0-0` page stays intact when `v26.0.0-1` is later published.
 
 > A handful of early releases predate this scheme and use a suffixless `v<version>` tag (e.g. `v25.1.0`); those count as iteration 0, so the next refresh of such a version is `-1`.
 
@@ -143,9 +143,11 @@ Triggered exclusively by the `release: published` event — when a maintainer cl
 
 Per-architecture tags (`:<cli>-rust<key>-<arch>`) and multi-arch manifest lists (`:<cli>-rust<key>`) on Docker Hub are **mutable** — re-publishing a `(cli, rust base)` pair overwrites the tag in place. Reproducibility is anchored by the per-arch image content digest and by the `builds.json` pins, not by tag stability.
 
-Moving aliases (`:<cli>`, `:latest`) re-point each release. The immutable `:<cli>-rust<key>-<arch>-<N>` snapshots are the exception — they're keyed by the release's refresh index, so a re-run recreates the same tags at the same digests rather than moving them.
+Moving aliases (`:<cli>`, `:latest`) re-point each release. The immutable `:<cli>-rust<key>-<arch>-<N>` snapshots are the exception — they're keyed by the release's refresh index and, by design, never move: the `manifest` job leaves an existing `:…-<N>` tag alone when it already pins the same digest and **fails loudly** if a re-run built a different digest, rather than clobbering an on-chain `bldimg` anchor.
 
-To recover from a failed run, use **Re-run failed jobs** from the GitHub Actions UI; re-runs simply rebuild and overwrite. Recovering from a corrupt push is the same — just re-run, no manual tag deletion needed.
+To recover from a failed run, use **Re-run failed jobs** from the GitHub Actions UI. This re-runs against the same release event, so the tag and its refresh index `N` are unchanged — no new GitHub Release is created. Re-running only the failed downstream jobs (`manifest`, `aliases`, `release`) reuses the per-arch images already pushed by `build` and just overwrites the mutable tags; no manual tag deletion is needed.
+
+Re-running the `build` job itself is different: builds are not byte-reproducible (`BUILD_DATE` is the run's wall-clock time), so a rebuild generally produces a **new** per-arch digest. The mutable tags overwrite fine, but the `manifest` job will then refuse to re-point the already-created immutable `:…-<N>` snapshot and fail. That guard is intentional — it protects the digest a contract may already pin. If you truly need to replace a published iteration's content, cut a **new** refresh iteration (`v<cli>-<N+1>`) instead of rebuilding an existing one.
 
 ## Backfilling immutable per-arch tags for older releases
 

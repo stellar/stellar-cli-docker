@@ -44,8 +44,8 @@ jobs:
           # auto-picked by the release workflow. Strip leading "v" and the
           # trailing "-<N>" to derive the stellar-cli version; the refresh
           # index N (0 when there's no suffix, i.e. the first release) names
-          # the immutable :<version>-<N> Docker tag published by the aliases
-          # job (see issue #38).
+          # the immutable :<cli>-rust<key>-<arch>-<N> Docker tags minted by the
+          # manifest job (see issue #38).
           no_prefix="${RELEASE_TAG#v}"
           version="${no_prefix%%-*}"
           test -n "$version" || { echo "::error::could not determine stellar_cli_version from release tag '$RELEASE_TAG'"; exit 1; }
