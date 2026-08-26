@@ -165,7 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def resolve_iteration(args, cli: str) -> int:
+def resolve_iteration(args: argparse.Namespace, cli: str) -> int:
     """The iteration index to label recovered snapshots with.
 
     An explicit `--iteration` wins. Otherwise it's the newest `v<cli>[-N]`
